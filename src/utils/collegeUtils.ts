@@ -478,14 +478,60 @@ export function getSampleCurriculumData(): {
   ];
 
   const subjects: CurriculumSubject[] = [
-    // BSIT Subjects
-    { id: 'subj_it101', programId: 'prog_bsit', code: 'IT 101', name: 'Introduction to Computing', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
-    { id: 'subj_it102', programId: 'prog_bsit', code: 'IT 102', name: 'Computer Programming 1 (Python)', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
-    { id: 'subj_it201', programId: 'prog_bsit', code: 'IT 201', name: 'Data Structures & Algorithms', units: 3, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
-    { id: 'subj_it204', programId: 'prog_bsit', code: 'IT 204', name: 'Database Management Systems', units: 3, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
-    { id: 'subj_it301', programId: 'prog_bsit', code: 'IT 301', name: 'Advanced Web Applications & Cloud', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
-    { id: 'subj_it302', programId: 'prog_bsit', code: 'IT 302', name: 'Systems Integration & Architecture', units: 3, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
-    { id: 'subj_it401', programId: 'prog_bsit', code: 'IT 401', name: 'Capstone Project & Research 1', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+    // BSIT Major Subjects
+    // FIRST YEAR — 1st Semester
+    { id: 'subj_cc111', programId: 'prog_bsit', code: 'CC 111', name: 'Introduction to Computing', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cc112', programId: 'prog_bsit', code: 'CC 112', name: 'Computer Programming 1 (Lec)', units: 2, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cc112l', programId: 'prog_bsit', code: 'CC 112L', name: 'Computer Programming 1 (Lab)', units: 1, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_ap1', programId: 'prog_bsit', code: 'AP 1', name: 'Multimedia', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+
+    // FIRST YEAR — 2nd Semester
+    { id: 'subj_cc123', programId: 'prog_bsit', code: 'CC 123', name: 'Computer Programming 2 (Lec)', units: 2, yearLevel: '1st Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_cc123l', programId: 'prog_bsit', code: 'CC 123L', name: 'Computer Programming 2 (Lab)', units: 1, yearLevel: '1st Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_pc121', programId: 'prog_bsit', code: 'PC 121 / Math-E2', name: 'Discrete Mathematics', units: 3, yearLevel: '1st Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_ap2', programId: 'prog_bsit', code: 'AP 2', name: 'Digital Logic Design', units: 3, yearLevel: '1st Year', semester: '2nd Semester', createdAt: Date.now() },
+
+    // SECOND YEAR — 1st Semester
+    { id: 'subj_pc212', programId: 'prog_bsit', code: 'PC 212', name: 'Quantitative Methods (Modeling & Simulation)', units: 3, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cc214', programId: 'prog_bsit', code: 'CC 214', name: 'Data Structures and Algorithms (Lec)', units: 2, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cc214l', programId: 'prog_bsit', code: 'CC 214L', name: 'Data Structures and Algorithms (Lab)', units: 1, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pelec1', programId: 'prog_bsit', code: 'P Elec 1', name: 'Object-Oriented Programming', units: 3, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pelec2', programId: 'prog_bsit', code: 'P Elec 2', name: 'Web Systems and Technologies', units: 3, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+
+    // SECOND YEAR — 2nd Semester
+    { id: 'subj_pc223', programId: 'prog_bsit', code: 'PC 223', name: 'Integrative Programming and Technologies 1', units: 3, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_pc224', programId: 'prog_bsit', code: 'PC 224', name: 'Networking 1', units: 3, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_cc225', programId: 'prog_bsit', code: 'CC 225', name: 'Information Management (Lec)', units: 2, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_cc225l', programId: 'prog_bsit', code: 'CC 225L', name: 'Information Management (Lab)', units: 1, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_pelec3', programId: 'prog_bsit', code: 'P Elec 3', name: 'Platform Technologies', units: 3, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_ap3', programId: 'prog_bsit', code: 'AP 3', name: 'ASP.NET', units: 3, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+
+    // THIRD YEAR — 1st Semester
+    { id: 'subj_pc315', programId: 'prog_bsit', code: 'PC 315', name: 'Networking 2 (Lec)', units: 2, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc315l', programId: 'prog_bsit', code: 'PC 315L', name: 'Networking 2 (Lab)', units: 1, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc316', programId: 'prog_bsit', code: 'PC 316', name: 'Systems Integration and Architecture 1', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc317', programId: 'prog_bsit', code: 'PC 317', name: 'Introduction to Human Computer Interaction', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc3180', programId: 'prog_bsit', code: 'PC 3180', name: 'Database Management Systems', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cc316', programId: 'prog_bsit', code: 'CC 316', name: 'Applications Development and Emerging Technologies', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+
+    // THIRD YEAR — 2nd Semester
+    { id: 'subj_pc329', programId: 'prog_bsit', code: 'PC 329', name: 'Capstone Project and Research 1', units: 3, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_pc3210', programId: 'prog_bsit', code: 'PC 3210', name: 'Social and Professional Issues', units: 3, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_pc3211', programId: 'prog_bsit', code: 'PC 3211', name: 'Information Assurance and Security 1 (Lec)', units: 2, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_pc3211l', programId: 'prog_bsit', code: 'PC 3211L', name: 'Information Assurance and Security 1 (Lab)', units: 1, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_ap4', programId: 'prog_bsit', code: 'AP 4', name: 'iOS Mobile Application Development Cross-Platform', units: 3, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_ap5', programId: 'prog_bsit', code: 'AP 5', name: 'Technology and the Application of the Internet of Things', units: 3, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+
+    // FOURTH YEAR — 1st Semester
+    { id: 'subj_pc4112', programId: 'prog_bsit', code: 'PC 4112', name: 'Information Assurance and Security 2 (Lec)', units: 2, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc4112l', programId: 'prog_bsit', code: 'PC 4112L', name: 'Information Assurance and Security 2 (Lab)', units: 1, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc4113', programId: 'prog_bsit', code: 'PC 4113', name: 'Systems Administration and Maintenance', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pc4114', programId: 'prog_bsit', code: 'PC 4114', name: 'Capstone Project and Research 2', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_pelec4', programId: 'prog_bsit', code: 'P Elec 4', name: 'Systems Integration and Architecture 2', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_ap6', programId: 'prog_bsit', code: 'AP 6', name: 'Cross-Platform Script Development Technology', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+
+    // FOURTH YEAR — 2nd Semester
+    { id: 'subj_pc4215', programId: 'prog_bsit', code: 'PC 4215', name: 'On-the-Job Training (OJT)', units: 6, yearLevel: '4th Year', semester: '2nd Semester', createdAt: Date.now() },
 
     // BSCS Subjects
     { id: 'subj_cs101', programId: 'prog_bscs', code: 'CS 101', name: 'Discrete Mathematics', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },

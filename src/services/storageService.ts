@@ -152,12 +152,25 @@ class StorageService {
   // --- INITIALIZATION / SEEDING ---
 
   public initializeCurriculumData(): void {
+    const CURRICULUM_VERSION_KEY = 'uniattend_curriculum_v2_bsit_majors';
+    const hasCurrentVersion = localStorage.getItem(CURRICULUM_VERSION_KEY);
     const programs = this.getLocalData<CurriculumProgram>(STORAGE_KEYS.PROGRAMS);
-    if (programs.length === 0) {
+
+    if (programs.length === 0 || !hasCurrentVersion) {
       const sample = getSampleCurriculumData();
-      this.setLocalData(STORAGE_KEYS.PROGRAMS, sample.programs);
-      this.setLocalData(STORAGE_KEYS.SUBJECTS, sample.subjects);
-      this.setLocalData(STORAGE_KEYS.SECTIONS, sample.sections);
+
+      if (programs.length > 0) {
+        // Keep non-BSIT subjects and custom subjects, replace old BSIT seed subjects with new official curriculum
+        const nonBsitSubjects = this.getSubjects().filter(s => s.programId !== 'prog_bsit');
+        const newBsitSubjects = sample.subjects.filter(s => s.programId === 'prog_bsit');
+        this.setLocalData(STORAGE_KEYS.SUBJECTS, [...newBsitSubjects, ...nonBsitSubjects]);
+      } else {
+        this.setLocalData(STORAGE_KEYS.PROGRAMS, sample.programs);
+        this.setLocalData(STORAGE_KEYS.SUBJECTS, sample.subjects);
+        this.setLocalData(STORAGE_KEYS.SECTIONS, sample.sections);
+      }
+
+      localStorage.setItem(CURRICULUM_VERSION_KEY, 'true');
     }
   }
 
