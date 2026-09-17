@@ -31,8 +31,8 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   teacherProgramId
 }) => {
   const programs: CurriculumProgram[] = storageService.getPrograms();
+  const effectiveProgramId = teacherProgramId || programs[0]?.id || 'prog_bsit';
 
-  const [programId, setProgramId] = useState(teacherProgramId || programs[0]?.id || '');
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [section, setSection] = useState('');
@@ -44,9 +44,9 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   const [isCustomSubject, setIsCustomSubject] = useState(false);
   const [isCustomSection, setIsCustomSection] = useState(false);
 
-  // Available subjects and sections under chosen Program
-  const availableSubjects: CurriculumSubject[] = storageService.getSubjects(programId);
-  const availableSections: CurriculumSection[] = storageService.getSections(programId);
+  // Available subjects and sections automatically filtered by teacher's chosen program
+  const availableSubjects: CurriculumSubject[] = storageService.getSubjects(effectiveProgramId);
+  const availableSections: CurriculumSection[] = storageService.getSections(effectiveProgramId);
 
   useEffect(() => {
     if (initialCourse) {
@@ -61,11 +61,8 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setIsCustomSection(true);
       setSelectedSectionId('');
     } else {
-      const defaultProg = teacherProgramId || programs[0]?.id || '';
-      setProgramId(defaultProg);
-
-      const defaultSubjs = storageService.getSubjects(defaultProg);
-      const defaultSecs = storageService.getSections(defaultProg);
+      const defaultSubjs = storageService.getSubjects(effectiveProgramId);
+      const defaultSecs = storageService.getSections(effectiveProgramId);
 
       if (defaultSubjs.length > 0) {
         setCode(defaultSubjs[0].code);
@@ -92,32 +89,9 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setSchedule('');
       setColor(COLOR_OPTIONS[0]);
     }
-  }, [initialCourse, isOpen, teacherProgramId]);
+  }, [initialCourse, isOpen, effectiveProgramId]);
 
-  // Handle Degree Program switch
-  const handleProgramChange = (newProgId: string) => {
-    setProgramId(newProgId);
-    const subjs = storageService.getSubjects(newProgId);
-    const secs = storageService.getSections(newProgId);
-
-    if (subjs.length > 0) {
-      setCode(subjs[0].code);
-      setName(subjs[0].name);
-      setIsCustomSubject(false);
-    } else {
-      setIsCustomSubject(true);
-    }
-
-    if (secs.length > 0) {
-      setSection(secs[0].name);
-      setSelectedSectionId(secs[0].id);
-      setIsCustomSection(false);
-    } else {
-      setIsCustomSection(true);
-    }
-  };
-
-  // Handle Subject Code dropdown selection -> Auto-fills Subject Name!
+  // Handle Subject Code dropdown selection -> Auto-fills Subject Name
   const handleSubjectDropdownChange = (selectedVal: string) => {
     if (selectedVal === '__custom__') {
       setIsCustomSubject(true);
@@ -128,7 +102,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       const matched = availableSubjects.find(s => s.code === selectedVal);
       if (matched) {
         setCode(matched.code);
-        setName(matched.name); // Automatically fills the subject name!
+        setName(matched.name);
       }
     }
   };
@@ -194,25 +168,6 @@ export const CourseModal: React.FC<CourseModalProps> = ({
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
             
-            {/* Degree Program Filter */}
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>College Degree Program</span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Curriculum catalog source</span>
-              </label>
-              <select
-                className="form-select"
-                value={programId}
-                onChange={e => handleProgramChange(e.target.value)}
-              >
-                {programs.map(prog => (
-                  <option key={prog.id} value={prog.id}>
-                    {prog.code} - {prog.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Subject Code (Dropdown or Custom) & Block Section (Dropdown or Custom) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
               
@@ -323,7 +278,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
             </div>
 
             {/* Auto-enroll notice if section has students */}
-            {!initialCourse && !isCustomSection && selectedSectionObj && selectedSectionObj.students?.length > 0 && (
+            {!initialCourse && !isCustomSection && selectedSectionObj && selectedSectionObj.students && selectedSectionObj.students.length > 0 && (
               <div style={{ padding: '0.65rem 0.85rem', background: 'var(--status-present-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(21, 128, 61, 0.2)', fontSize: '0.8rem', color: 'var(--status-present)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span>👥 <strong>{selectedSectionObj.students.length} pre-enrolled students</strong> from <strong>{selectedSectionObj.name}</strong> will be automatically enrolled in your class roster!</span>
               </div>
@@ -409,4 +364,3 @@ export const CourseModal: React.FC<CourseModalProps> = ({
     </div>
   );
 };
-
