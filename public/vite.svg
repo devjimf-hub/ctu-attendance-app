@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="50%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#06b6d4" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  <g filter="url(#shadow)" transform="translate(96, 96)">
+    <!-- Graduation Cap / College Icon -->
+    <path d="M160 32 L30 100 L160 168 L290 100 Z" fill="#ffffff" />
+    <path d="M60 120 L60 210 C60 250, 260 250, 260 210 L260 120" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" />
+    <path d="M290 100 L290 200" stroke="#fef08a" stroke-width="12" stroke-linecap="round" />
+    <circle cx="290" cy="210" r="14" fill="#fef08a" />
+    <!-- Checkmark Badge -->
+    <circle cx="230" cy="220" r="54" fill="#10b981" stroke="#ffffff" stroke-width="10" />
+    <path d="M210 220 L224 234 L252 206" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Rules for teacher attendance system
+    // Can be locked down to authenticated user or allow collection access
+    match /{document=**} {
+      allow read, write: if true; // In production, replace with: if request.auth != null
+    }
+  }
+}
