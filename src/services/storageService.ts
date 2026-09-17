@@ -533,6 +533,49 @@ class StorageService {
     }
   }
 
+  public async uploadCurriculumToFirebase(): Promise<{ success: boolean; count: { programs: number; subjects: number; sections: number; students: number } }> {
+    const { db } = getFirebaseInstance();
+    if (!db) {
+      throw new Error('Firebase Firestore is not initialized.');
+    }
+
+    const sample = getSampleCurriculumData();
+    const programs = this.getPrograms().length > 0 ? this.getPrograms() : sample.programs;
+    const subjects = this.getSubjects().length > 0 ? this.getSubjects() : sample.subjects;
+    const sections = this.getSections().length > 0 ? this.getSections() : sample.sections;
+
+    let totalStudents = 0;
+    const batch = writeBatch(db);
+
+    for (const prog of programs) {
+      const docRef = doc(db, 'curriculum_programs', prog.id);
+      batch.set(docRef, prog, { merge: true });
+    }
+
+    for (const subj of subjects) {
+      const docRef = doc(db, 'curriculum_subjects', subj.id);
+      batch.set(docRef, subj, { merge: true });
+    }
+
+    for (const sec of sections) {
+      const docRef = doc(db, 'curriculum_sections', sec.id);
+      batch.set(docRef, sec, { merge: true });
+      totalStudents += sec.students?.length || 0;
+    }
+
+    await batch.commit();
+
+    return {
+      success: true,
+      count: {
+        programs: programs.length,
+        subjects: subjects.length,
+        sections: sections.length,
+        students: totalStudents
+      }
+    };
+  }
+
   // --- BACKUP & RESTORE ---
 
   public exportFullBackupJSON(): string {
