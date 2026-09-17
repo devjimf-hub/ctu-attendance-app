@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import {
-  GraduationCap,
   LogIn,
   UserPlus,
   Mail,
@@ -169,18 +168,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
       }}>
         {/* App Logo & Branding */}
         <div style={{
-          width: '56px',
-          height: '56px',
-          background: 'linear-gradient(135deg, #1a73e8 0%, #1557b0 100%)',
-          borderRadius: 'var(--radius-md)',
+          width: '64px',
+          height: '64px',
           margin: '0 auto 1rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#fff',
-          boxShadow: '0 6px 16px rgba(26, 115, 232, 0.35)'
+          background: '#ffffff',
+          borderRadius: 'var(--radius-full)',
+          padding: '6px',
+          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.12)',
+          border: '1px solid var(--border-color)'
         }}>
-          <GraduationCap size={32} />
+          <img
+            src="/logo.webp"
+            alt="CTU UniAttend Logo"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
         </div>
 
         <h1 style={{

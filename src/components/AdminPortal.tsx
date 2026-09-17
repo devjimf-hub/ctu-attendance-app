@@ -4,19 +4,18 @@ import {
   BookOpen,
   Users,
   Plus,
-  Trash2,
   Edit2,
-  Search,
-  ArrowLeft,
-  Upload,
-  Layers,
-  Save,
-  X,
-  FileSpreadsheet,
+  Trash2,
   Lock,
   LogOut,
   ShieldCheck,
+  Search,
+  ArrowLeft,
   KeyRound,
+  Save,
+  X,
+  FileSpreadsheet,
+  Upload,
   AlertCircle
 } from 'lucide-react';
 import {
@@ -557,8 +556,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
           <div style={{ height: '24px', width: '1px', background: 'var(--border-color)', margin: '0 0.5rem' }} />
 
           <div className="header-title-group">
-            <div className="app-logo-icon" style={{ background: '#7c3aed' }}>
-              <Layers size={20} />
+            <div className="app-logo-icon" style={{ background: 'transparent', padding: 0, overflow: 'hidden' }}>
+              <img src="/logo.webp" alt="UniAttend Logo" style={{ width: '26px', height: '26px', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

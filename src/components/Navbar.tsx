@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  GraduationCap,
   Wifi,
   WifiOff,
   RefreshCw,
@@ -41,8 +40,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     <header className="google-header no-print">
       <div className="header-left">
         <div className="header-title-group">
-          <div className="app-logo-icon">
-            <GraduationCap size={22} />
+          <div className="app-logo-icon" style={{ background: 'transparent', padding: 0, overflow: 'hidden' }}>
+            <img src="/logo.webp" alt="CTU UniAttend Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           </div>
           <span className="header-app-name">
             UniAttend
