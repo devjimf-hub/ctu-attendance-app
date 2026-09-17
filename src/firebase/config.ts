@@ -6,6 +6,7 @@ import {
   Firestore,
   getFirestore
 } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
 import { FirebaseConfig } from '../types';
 
 const STORAGE_KEY_FIREBASE_CONFIG = 'uniattend_firebase_config';
@@ -49,6 +50,7 @@ export function removeFirebaseConfig(): void {
 
 let cachedDb: Firestore | null = null;
 let cachedApp: FirebaseApp | null = null;
+let cachedAuth: Auth | null = null;
 
 export function getFirebaseInstance(): { app: FirebaseApp | null; db: Firestore | null } {
   if (cachedDb && cachedApp) {
@@ -86,7 +88,18 @@ export function getFirebaseInstance(): { app: FirebaseApp | null; db: Firestore 
   }
 }
 
+export function getFirebaseAuth(): Auth | null {
+  if (cachedAuth) return cachedAuth;
+  const { app } = getFirebaseInstance();
+  if (app) {
+    cachedAuth = getAuth(app);
+    return cachedAuth;
+  }
+  return null;
+}
+
 export function resetFirebaseInstance(): void {
   cachedDb = null;
   cachedApp = null;
+  cachedAuth = null;
 }

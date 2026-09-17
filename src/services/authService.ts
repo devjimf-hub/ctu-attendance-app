@@ -15,7 +15,7 @@ export const authService = {
     return null;
   },
 
-  login(name: string, email: string, department: string = 'College Faculty'): TeacherUser {
+  login(name: string, email: string, department: string = 'College Faculty', programId?: string): TeacherUser {
     const cleanEmail = email.trim().toLowerCase() || 'professor@college.edu';
     const cleanName = name.trim() || 'Professor Alex Turner';
     const cleanDept = department.trim() || 'Computer Science & IT';
@@ -27,6 +27,7 @@ export const authService = {
       name: cleanName,
       email: cleanEmail,
       department: cleanDept,
+      programId: programId || 'prog_bsit',
       isLoggedIn: true
     };
     localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(user));
@@ -34,7 +35,7 @@ export const authService = {
   },
 
   quickDemoLogin(): TeacherUser {
-    return this.login('Prof. Alexander Turner', 'alex.turner@college.edu', 'Department of Computer Studies');
+    return this.login('Prof. Alexander Turner', 'alex.turner@college.edu', 'Department of Computer Studies', 'prog_bsit');
   },
 
   logout(): void {

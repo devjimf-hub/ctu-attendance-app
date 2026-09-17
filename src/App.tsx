@@ -12,6 +12,7 @@ import { authService } from './services/authService';
 import { calculateStudentSummaries } from './utils/collegeUtils';
 
 import { LoginScreen } from './components/LoginScreen';
+import { AdminPortal } from './components/AdminPortal';
 import { Navbar } from './components/Navbar';
 import { OfflineBanner } from './components/OfflineBanner';
 import { Dashboard } from './components/Dashboard';
@@ -26,9 +27,25 @@ import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import './styles/theme.css';
 import './styles/app.css';
 
+// Helper to detect hidden Admin URL route (#/admin, /admin, or ?admin=1)
+const checkIsAdminRoute = (): boolean => {
+  const hash = window.location.hash.toLowerCase();
+  const pathname = window.location.pathname.toLowerCase();
+  const search = new URLSearchParams(window.location.search);
+  return (
+    hash.includes('admin') ||
+    pathname.endsWith('/admin') ||
+    pathname.includes('/admin/') ||
+    search.has('admin')
+  );
+};
+
 export function App() {
   // Authentication State
   const [teacher, setTeacher] = useState<TeacherUser | null>(() => authService.getCurrentUser());
+
+  // Admin Portal Mode (syncs with URL #/admin or ?admin=true)
+  const [isAdminPortalOpen, setIsAdminPortalOpen] = useState<boolean>(() => checkIsAdminRoute());
 
   // Theme state
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -104,6 +121,20 @@ export function App() {
     document.body.className = theme === 'dark' ? 'dark-theme' : 'light-theme';
     localStorage.setItem('uniattend_theme', theme);
   }, [theme]);
+
+  // URL Routing Sync for Admin Portal (#/admin, /admin, ?admin)
+  useEffect(() => {
+    const syncAdminRoute = () => {
+      setIsAdminPortalOpen(checkIsAdminRoute());
+    };
+
+    window.addEventListener('hashchange', syncAdminRoute);
+    window.addEventListener('popstate', syncAdminRoute);
+    return () => {
+      window.removeEventListener('hashchange', syncAdminRoute);
+      window.removeEventListener('popstate', syncAdminRoute);
+    };
+  }, []);
 
   const refreshLocalData = () => {
     const teacherId = teacher?.id;
@@ -184,8 +215,28 @@ export function App() {
   };
 
   // Course Actions
-  const handleSaveCourse = async (course: Course) => {
+  const handleSaveCourse = async (course: Course, selectedSectionId?: string) => {
     await storageService.saveCourse(course);
+
+    // If teacher selected an existing block section, auto-enroll that section's students!
+    if (selectedSectionId) {
+      const sec = storageService.getSectionById(selectedSectionId);
+      if (sec && sec.students && sec.students.length > 0) {
+        const newStudents: Student[] = sec.students.map((ms, idx) => ({
+          id: `stu_${course.id}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+          teacherId: teacher?.id,
+          studentId: ms.studentId,
+          name: ms.name,
+          email: ms.email,
+          courseId: course.id,
+          major: sec.name,
+          yearLevel: sec.yearLevel,
+          createdAt: Date.now()
+        }));
+        await storageService.saveStudentsBulk(newStudents);
+      }
+    }
+
     refreshLocalData();
     setSelectedCourseId(course.id);
   };
@@ -290,9 +341,34 @@ export function App() {
     refreshLocalData();
   };
 
+  // Handler to close Admin Portal and reset URL
+  const handleCloseAdminPortal = () => {
+    if (window.location.hash.toLowerCase().includes('admin')) {
+      window.location.hash = '';
+    }
+    if (new URLSearchParams(window.location.search).has('admin')) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('admin');
+      window.history.replaceState(null, '', url.pathname + (url.hash || ''));
+    }
+    if (window.location.pathname.toLowerCase().includes('/admin')) {
+      window.history.pushState(null, '', '/' + (window.location.hash || ''));
+    }
+    setIsAdminPortalOpen(false);
+  };
+
+  // If Admin Portal is active, show Admin Portal
+  if (isAdminPortalOpen) {
+    return <AdminPortal onBackToTeacherPortal={handleCloseAdminPortal} />;
+  }
+
   // If teacher is not signed in, show clean Login Screen
   if (!teacher) {
-    return <LoginScreen onLoginSuccess={user => setTeacher(user)} />;
+    return (
+      <LoginScreen
+        onLoginSuccess={user => setTeacher(user)}
+      />
+    );
   }
 
   return (
@@ -385,6 +461,7 @@ export function App() {
         onSave={handleSaveCourse}
         onDelete={handleDeleteCourse}
         initialCourse={editingCourse}
+        teacherProgramId={teacher?.programId}
       />
 
       {activeCourse && (

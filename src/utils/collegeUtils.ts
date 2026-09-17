@@ -1,4 +1,12 @@
-import { Student, AttendanceSession, StudentAttendanceSummary, Course } from '../types';
+import {
+  Student,
+  AttendanceSession,
+  StudentAttendanceSummary,
+  Course,
+  CurriculumProgram,
+  CurriculumSubject,
+  CurriculumSection
+} from '../types';
 
 /**
  * Parse student name parts for sorting and standard academic display (Lastname, Firstname).
@@ -435,4 +443,107 @@ export function getSampleCollegeData(): { courses: Course[]; students: Student[]
   ];
 
   return { courses, students, sessions };
+}
+
+/**
+ * Generate Default Sample Curriculum Data for Admin & Teacher sync
+ */
+export function getSampleCurriculumData(): {
+  programs: CurriculumProgram[];
+  subjects: CurriculumSubject[];
+  sections: CurriculumSection[];
+} {
+  const programs: CurriculumProgram[] = [
+    {
+      id: 'prog_bsit',
+      code: 'BSIT',
+      name: 'Bachelor of Science in Information Technology',
+      department: 'College of Computer Studies',
+      createdAt: Date.now() - 86400000 * 30
+    },
+    {
+      id: 'prog_bscs',
+      code: 'BSCS',
+      name: 'Bachelor of Science in Computer Science',
+      department: 'College of Computer Studies',
+      createdAt: Date.now() - 86400000 * 30
+    },
+    {
+      id: 'prog_bsis',
+      code: 'BSIS',
+      name: 'Bachelor of Science in Information Systems',
+      department: 'College of Computer Studies',
+      createdAt: Date.now() - 86400000 * 30
+    }
+  ];
+
+  const subjects: CurriculumSubject[] = [
+    // BSIT Subjects
+    { id: 'subj_it101', programId: 'prog_bsit', code: 'IT 101', name: 'Introduction to Computing', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_it102', programId: 'prog_bsit', code: 'IT 102', name: 'Computer Programming 1 (Python)', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_it201', programId: 'prog_bsit', code: 'IT 201', name: 'Data Structures & Algorithms', units: 3, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_it204', programId: 'prog_bsit', code: 'IT 204', name: 'Database Management Systems', units: 3, yearLevel: '2nd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_it301', programId: 'prog_bsit', code: 'IT 301', name: 'Advanced Web Applications & Cloud', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_it302', programId: 'prog_bsit', code: 'IT 302', name: 'Systems Integration & Architecture', units: 3, yearLevel: '3rd Year', semester: '2nd Semester', createdAt: Date.now() },
+    { id: 'subj_it401', programId: 'prog_bsit', code: 'IT 401', name: 'Capstone Project & Research 1', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() },
+
+    // BSCS Subjects
+    { id: 'subj_cs101', programId: 'prog_bscs', code: 'CS 101', name: 'Discrete Mathematics', units: 3, yearLevel: '1st Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cs202', programId: 'prog_bscs', code: 'CS 202', name: 'Object-Oriented Programming (Java/C++)', units: 3, yearLevel: '2nd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cs301', programId: 'prog_bscs', code: 'CS 301', name: 'Database Management Systems', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cs305', programId: 'prog_bscs', code: 'CS 305', name: 'Design & Analysis of Algorithms', units: 3, yearLevel: '3rd Year', semester: '1st Semester', createdAt: Date.now() },
+    { id: 'subj_cs401', programId: 'prog_bscs', code: 'CS 401', name: 'Artificial Intelligence & Machine Learning', units: 3, yearLevel: '4th Year', semester: '1st Semester', createdAt: Date.now() }
+  ];
+
+  const sections: CurriculumSection[] = [
+    {
+      id: 'sec_bsit3a',
+      programId: 'prog_bsit',
+      name: 'BSIT 3-A',
+      yearLevel: '3rd Year',
+      semester: '1st Semester',
+      students: [
+        { id: 'mstu_1', studentId: '2023-01041', name: 'Alexander Wright', email: 'a.wright@university.edu', gender: 'M' },
+        { id: 'mstu_2', studentId: '2023-01042', name: 'Brianna Chen', email: 'b.chen@university.edu', gender: 'F' },
+        { id: 'mstu_3', studentId: '2023-01043', name: 'Carlos Morales', email: 'c.morales@university.edu', gender: 'M' },
+        { id: 'mstu_4', studentId: '2023-01044', name: 'Danielle Vance', email: 'd.vance@university.edu', gender: 'F' },
+        { id: 'mstu_5', studentId: '2023-01045', name: 'Ethan Hunt', email: 'e.hunt@university.edu', gender: 'M' },
+        { id: 'mstu_6', studentId: '2023-01046', name: 'Fiona Gallagher', email: 'f.gallagher@university.edu', gender: 'F' },
+        { id: 'mstu_7', studentId: '2023-01047', name: 'Gabriel Santos', email: 'g.santos@university.edu', gender: 'M' },
+        { id: 'mstu_8', studentId: '2023-01048', name: 'Hannah Abbott', email: 'h.abbott@university.edu', gender: 'F' }
+      ],
+      createdAt: Date.now()
+    },
+    {
+      id: 'sec_bsit2b',
+      programId: 'prog_bsit',
+      name: 'BSIT 2-B',
+      yearLevel: '2nd Year',
+      semester: '1st Semester',
+      students: [
+        { id: 'mstu_21', studentId: '2024-02011', name: 'Liam Johnson', email: 'l.johnson@university.edu', gender: 'M' },
+        { id: 'mstu_22', studentId: '2024-02012', name: 'Sophia Martinez', email: 's.martinez@university.edu', gender: 'F' },
+        { id: 'mstu_23', studentId: '2024-02013', name: 'Noah Davis', email: 'n.davis@university.edu', gender: 'M' },
+        { id: 'mstu_24', studentId: '2024-02014', name: 'Emma Wilson', email: 'e.wilson@university.edu', gender: 'F' },
+        { id: 'mstu_25', studentId: '2024-02015', name: 'Lucas Taylor', email: 'l.taylor@university.edu', gender: 'M' }
+      ],
+      createdAt: Date.now()
+    },
+    {
+      id: 'sec_bscs3a',
+      programId: 'prog_bscs',
+      name: 'BSCS 3-A',
+      yearLevel: '3rd Year',
+      semester: '1st Semester',
+      students: [
+        { id: 'mstu_31', studentId: '2023-03001', name: 'Benjamin Clark', email: 'b.clark@university.edu', gender: 'M' },
+        { id: 'mstu_32', studentId: '2023-03002', name: 'Chloe Lewis', email: 'c.lewis@university.edu', gender: 'F' },
+        { id: 'mstu_33', studentId: '2023-03003', name: 'Daniel Walker', email: 'd.walker@university.edu', gender: 'M' },
+        { id: 'mstu_34', studentId: '2023-03004', name: 'Grace Hall', email: 'g.hall@university.edu', gender: 'F' }
+      ],
+      createdAt: Date.now()
+    }
+  ];
+
+  return { programs, subjects, sections };
 }

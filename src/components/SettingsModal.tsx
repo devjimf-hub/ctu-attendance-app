@@ -8,15 +8,10 @@ import {
   RefreshCw,
   Trash2,
   CheckCircle2,
-  HelpCircle
+  ShieldCheck,
+  Database
 } from 'lucide-react';
-import { FirebaseConfig, SyncStatus } from '../types';
-import {
-  getSavedFirebaseConfig,
-  saveFirebaseConfig,
-  removeFirebaseConfig,
-  resetFirebaseInstance
-} from '../firebase/config';
+import { SyncStatus } from '../types';
 import { storageService } from '../services/storageService';
 
 interface SettingsModalProps {
@@ -32,62 +27,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   syncStatus,
   onSyncRefresh
 }) => {
-  const currentConfig = getSavedFirebaseConfig() || {
-    apiKey: '',
-    authDomain: '',
-    projectId: '',
-    storageBucket: '',
-    messagingSenderId: '',
-    appId: ''
-  };
-
-  const [apiKey, setApiKey] = useState(currentConfig.apiKey || '');
-  const [authDomain, setAuthDomain] = useState(currentConfig.authDomain || '');
-  const [projectId, setProjectId] = useState(currentConfig.projectId || '');
-  const [storageBucket, setStorageBucket] = useState(currentConfig.storageBucket || '');
-  const [messagingSenderId, setMessagingSenderId] = useState(currentConfig.messagingSenderId || '');
-  const [appId, setAppId] = useState(currentConfig.appId || '');
-
-  const [savedSuccess, setSavedSuccess] = useState(false);
-  const [showDeployHelp, setShowDeployHelp] = useState(false);
+  const [syncingNow, setSyncingNow] = useState(false);
+  const [syncSuccess, setSyncSuccess] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSaveFirebase = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!apiKey.trim() || !projectId.trim()) {
-      alert('Please provide at least the Firebase API Key and Project ID.');
-      return;
-    }
-
-    const config: FirebaseConfig = {
-      apiKey: apiKey.trim(),
-      authDomain: authDomain.trim(),
-      projectId: projectId.trim(),
-      storageBucket: storageBucket.trim(),
-      messagingSenderId: messagingSenderId.trim(),
-      appId: appId.trim()
-    };
-
-    saveFirebaseConfig(config);
-    resetFirebaseInstance();
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
-    onSyncRefresh();
-    storageService.syncWithFirebase();
-  };
-
-  const handleDisconnectFirebase = () => {
-    if (confirm('Disconnect Firebase cloud sync? Your data will remain stored in local offline storage.')) {
-      removeFirebaseConfig();
-      resetFirebaseInstance();
-      setApiKey('');
-      setAuthDomain('');
-      setProjectId('');
-      setStorageBucket('');
-      setMessagingSenderId('');
-      setAppId('');
+  const handleManualSync = async () => {
+    setSyncingNow(true);
+    try {
+      await storageService.syncWithFirebase();
+      setSyncSuccess(true);
       onSyncRefresh();
+      setTimeout(() => setSyncSuccess(false), 3000);
+    } catch (e) {
+      console.error('Manual sync failed:', e);
+    } finally {
+      setSyncingNow(false);
     }
   };
 
@@ -133,17 +88,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
+  const formattedLastSync = syncStatus.lastSyncedAt
+    ? new Date(syncStatus.lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : 'Not yet synced';
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: '640px' }} onClick={e => e.stopPropagation()}>
+      <div className="modal-content" style={{ maxWidth: '580px' }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="modal-icon-badge">
               <Settings size={20} />
             </div>
             <div>
-              <h3 className="modal-title">System & Cloud Sync Settings</h3>
-              <p className="modal-subtitle">Configure Firebase sync & offline backups</p>
+              <h3 className="modal-title">System & Cloud Sync</h3>
+              <p className="modal-subtitle">Cloud synchronization status & local backups</p>
             </div>
           </div>
           <button className="btn-icon" onClick={onClose} aria-label="Close modal">
@@ -151,129 +110,129 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="modal-body">
-          {/* Cloud Sync Status */}
-          <div style={{ padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface-elevated)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Cloud size={16} color="var(--primary)" />
-                <span>Firebase Cloud Sync:</span>
-                <span style={{ color: syncStatus.firebaseConnected ? 'var(--status-present)' : 'var(--text-muted)' }}>
-                  {syncStatus.firebaseConnected ? 'Connected' : 'Not Connected (Local Mode)'}
-                </span>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Cloud Sync Status Card */}
+          <div
+            style={{
+              padding: '1.1rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    background: syncStatus.firebaseConnected ? 'var(--status-present-bg)' : 'var(--bg-card)',
+                    color: syncStatus.firebaseConnected ? 'var(--status-present)' : 'var(--text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  <Cloud size={20} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span>Cloud Sync</span>
+                    <span
+                      className={`badge ${syncStatus.firebaseConnected ? 'badge-present' : 'badge-excused'}`}
+                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}
+                    >
+                      {syncStatus.firebaseConnected ? 'Connected & Active' : 'Offline Local Mode'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    {syncStatus.isOnline
+                      ? '🟢 Internet connection active'
+                      : '🟠 Working offline (data saves locally in IndexedDB)'}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                {syncStatus.isOnline ? '🟢 Device is Online' : '🟠 Device is Offline (IndexedDB local cache)'}
-              </div>
-            </div>
 
-            <button className="btn btn-sm btn-secondary" onClick={() => storageService.syncWithFirebase()}>
-              <RefreshCw size={13} />
-              Sync Now
-            </button>
-          </div>
-
-          {/* Firebase Configuration Form */}
-          <form onSubmit={handleSaveFirebase} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 700 }}>Firebase Project Credentials</h4>
               <button
-                type="button"
-                className="btn-ghost btn-sm"
-                style={{ fontSize: '0.75rem', color: 'var(--primary)' }}
-                onClick={() => setShowDeployHelp(!showDeployHelp)}
+                className="btn btn-sm btn-primary"
+                onClick={handleManualSync}
+                disabled={syncingNow || syncStatus.isSyncing}
+                style={{ flexShrink: 0 }}
               >
-                <HelpCircle size={14} /> How to get config
+                <RefreshCw size={13} className={syncingNow || syncStatus.isSyncing ? 'spin-animate' : ''} />
+                {syncingNow || syncStatus.isSyncing ? 'Syncing...' : 'Sync Now'}
               </button>
             </div>
 
-            {showDeployHelp && (
-              <div style={{ padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'var(--primary-light)', fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.6 }}>
-                <strong>How to connect your Firebase Project:</strong>
-                <ol style={{ paddingLeft: '1.2rem', marginTop: '0.35rem' }}>
-                  <li>Go to <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" style={{ color: 'var(--primary)', fontWeight: 600 }}>Firebase Console</a> & create a project.</li>
-                  <li>Enable <strong>Cloud Firestore</strong> database.</li>
-                  <li>Go to <strong>Project Settings</strong> &rarr; <strong>Web App</strong> and copy the config object keys below.</li>
-                </ol>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '0.5rem',
+                paddingTop: '0.75rem',
+                borderTop: '1px solid var(--border-color)',
+                fontSize: '0.8rem',
+                color: 'var(--text-secondary)'
+              }}
+            >
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Pending queue: </span>
+                <strong>{syncStatus.pendingChangesCount} change{syncStatus.pendingChangesCount === 1 ? '' : 's'}</strong>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-muted)' }}>Last synced: </span>
+                <strong>{formattedLastSync}</strong>
+              </div>
+            </div>
+
+            {syncSuccess && (
+              <div style={{ fontSize: '0.8rem', color: 'var(--status-present)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <CheckCircle2 size={14} /> Cloud synchronization completed successfully!
               </div>
             )}
+          </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div className="form-group">
-                <label className="form-label">API Key</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  placeholder="AIzaSy..."
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Project ID</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="my-college-attendance"
-                  value={projectId}
-                  onChange={e => setProjectId(e.target.value)}
-                />
-              </div>
+          {/* Security & Infrastructure Info */}
+          <div
+            style={{
+              padding: '0.9rem 1rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--primary-light)',
+              border: '1px solid rgba(26, 115, 232, 0.15)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '0.75rem'
+            }}
+          >
+            <ShieldCheck size={18} color="var(--primary)" style={{ marginTop: '2px', flexShrink: 0 }} />
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+              <strong>Secure Cloud Infrastructure</strong>
+              <p style={{ margin: '0.2rem 0 0', color: 'var(--text-secondary)' }}>
+                Firebase credentials are encrypted and managed securely via server-side environment configuration. Raw credentials and API keys are hidden from the frontend to protect system integrity.
+              </p>
             </div>
+          </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <div className="form-group">
-                <label className="form-label">Auth Domain (Optional)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="project.firebaseapp.com"
-                  value={authDomain}
-                  onChange={e => setAuthDomain(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">App ID (Optional)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="1:12345:web:67890"
-                  value={appId}
-                  onChange={e => setAppId(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button type="submit" className="btn btn-primary btn-sm">
-                Save & Connect Cloud
-              </button>
-              {syncStatus.firebaseConnected && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleDisconnectFirebase}
-                >
-                  Disconnect
-                </button>
-              )}
-              {savedSuccess && (
-                <span style={{ fontSize: '0.8rem', color: 'var(--status-present)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <CheckCircle2 size={14} /> Saved!
-                </span>
-              )}
-            </div>
-          </form>
-
-          <hr style={{ borderColor: 'var(--border-color)', margin: '0.5rem 0' }} />
+          <hr style={{ borderColor: 'var(--border-color)', margin: '0' }} />
 
           {/* Backup & Recovery */}
           <div>
-            <h4 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.75rem' }}>
-              Local Data & Backup
-            </h4>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <Database size={16} color="var(--primary)" />
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0 }}>
+                Local Storage & Backup
+              </h4>
+            </div>
+
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.85rem' }}>
+              Export snapshots of your subjects, students, and attendance sessions for offline archival or transfer between devices.
+            </p>
+
             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
               <button className="btn btn-secondary btn-sm" onClick={handleExportBackup}>
                 <Download size={14} />
@@ -305,7 +264,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         <div className="modal-footer">
           <button type="button" className="btn btn-primary" onClick={onClose}>
-            Done
+            Close
           </button>
         </div>
       </div>

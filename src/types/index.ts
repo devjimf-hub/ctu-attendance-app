@@ -50,7 +50,45 @@ export interface TeacherUser {
   name: string;
   email: string;
   department?: string;
+  programId?: string; // Associated College Course / Program (e.g. BSIT)
   isLoggedIn: boolean;
+}
+
+export interface CurriculumProgram {
+  id: string;
+  code: string; // e.g., "BSIT", "BSCS"
+  name: string; // e.g., "Bachelor of Science in Information Technology"
+  department?: string; // e.g., "College of Computer Studies"
+  createdAt: number;
+}
+
+export interface CurriculumSubject {
+  id: string;
+  programId: string; // Belongs to CurriculumProgram.id
+  code: string; // e.g., "IT 204", "CS 301"
+  name: string; // e.g., "Database Management Systems"
+  units?: number;
+  yearLevel?: string; // e.g., "1st Year", "2nd Year", "3rd Year", "4th Year"
+  semester?: string; // e.g., "1st Semester", "2nd Semester"
+  createdAt: number;
+}
+
+export interface MasterStudent {
+  id: string;
+  studentId: string; // e.g., "2024-00101"
+  name: string; // e.g., "Abbott, Hannah"
+  email?: string;
+  gender?: 'M' | 'F';
+}
+
+export interface CurriculumSection {
+  id: string;
+  programId: string; // Belongs to CurriculumProgram.id
+  name: string; // e.g., "BSIT 3-A", "BSIT 2-B"
+  yearLevel: string; // e.g., "3rd Year"
+  semester?: string;
+  students: MasterStudent[];
+  createdAt: number;
 }
 
 export interface FirebaseConfig {

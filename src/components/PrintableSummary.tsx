@@ -456,31 +456,31 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
           >
             <thead>
               <tr style={{ background: '#f3f4f6', borderBottom: '1.5px solid #000000' }}>
-                <th style={{ border: '1px solid #000000', padding: '6px 8px', width: '36px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '6px 4px', width: '28px', textAlign: 'center', fontWeight: 'bold' }}>
                   #
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 8px', width: '130px', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '95px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                   ID NO.
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 8px', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '6px 8px', minWidth: '180px', fontWeight: 'bold' }}>
                   STUDENT NAME
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '85px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '5px 2px', width: '56px', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt' }}>
                   PRESENTS<br />(P)
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '85px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '5px 2px', width: '56px', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt' }}>
                   ABSENCES<br />(A)
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '85px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '5px 2px', width: '56px', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt' }}>
                   TARDINESS<br />(T)
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '85px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '5px 2px', width: '56px', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt' }}>
                   EXCUSES<br />(E)
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '75px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '5px 2px', width: '64px', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt' }}>
                   TOTAL<br />SESSIONS
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 8px', width: '80px', textAlign: 'center', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '5px 4px', width: '68px', textAlign: 'center', fontWeight: 'bold', fontSize: '8pt' }}>
                   ATTENDANCE<br />%
                 </th>
               </tr>
@@ -508,28 +508,28 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
                       <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>
                         {idx + 1}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 8px', fontFamily: 'monospace', fontWeight: 600 }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 6px', fontFamily: 'monospace', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {student.studentId}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 8px', fontWeight: 'bold' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 8px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                         {parseNameParts(student.name).displayName}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 6px', textAlign: 'center', fontWeight: 'bold', color: '#15803d' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold', color: '#15803d' }}>
                         {presentCount}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 6px', textAlign: 'center', fontWeight: absentCount > 2 ? 'bold' : 'normal', color: absentCount > 2 ? '#b91c1c' : '#000000' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: absentCount > 2 ? 'bold' : 'normal', color: absentCount > 2 ? '#b91c1c' : '#000000' }}>
                         {absentCount}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 6px', textAlign: 'center' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>
                         {lateCount}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 6px', textAlign: 'center' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center' }}>
                         {excusedCount}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 6px', textAlign: 'center', fontWeight: 600 }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 600 }}>
                         {totalSessions}
                       </td>
-                      <td style={{ border: '1px solid #000000', padding: '3px 6px', textAlign: 'center', fontWeight: 'bold' }}>
+                      <td style={{ border: '1px solid #000000', padding: '3px 4px', textAlign: 'center', fontWeight: 'bold' }}>
                         {pct}%
                       </td>
                     </tr>
@@ -552,10 +552,10 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
           >
             <thead>
               <tr style={{ background: '#ffffff', borderBottom: '1.5px solid #000000' }}>
-                <th style={{ border: '1px solid #000000', padding: '6px 8px', width: '120px', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '6px 6px', width: '95px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                   ID NO.
                 </th>
-                <th style={{ border: '1px solid #000000', padding: '6px 8px', minWidth: '220px', fontWeight: 'bold' }}>
+                <th style={{ border: '1px solid #000000', padding: '6px 8px', minWidth: '180px', fontWeight: 'bold' }}>
                   NAME
                 </th>
                 {sortedSessions.map((sess) => (
@@ -600,10 +600,10 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
 
                 return (
                   <tr key={student.id} style={{ height: '24px' }}>
-                    <td style={{ border: '1px solid #000000', padding: '3px 8px', fontFamily: 'monospace', fontWeight: 600 }}>
+                    <td style={{ border: '1px solid #000000', padding: '3px 6px', fontFamily: 'monospace', fontWeight: 600, whiteSpace: 'nowrap' }}>
                       {student.studentId}
                     </td>
-                    <td style={{ border: '1px solid #000000', padding: '3px 8px', fontWeight: 'bold' }}>
+                    <td style={{ border: '1px solid #000000', padding: '3px 8px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                       {parseNameParts(student.name).displayName}
                     </td>
                     {sortedSessions.map((session) => {
