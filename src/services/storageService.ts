@@ -16,7 +16,7 @@ import {
   CurriculumSection
 } from '../types';
 import { getFirebaseInstance, getSavedFirebaseConfig } from '../firebase/config';
-import { getSampleCollegeData, getSampleCurriculumData } from '../utils/collegeUtils';
+import { getSampleCurriculumData } from '../utils/collegeUtils';
 
 const STORAGE_KEYS = {
   COURSES: 'uniattend_courses',
@@ -161,25 +161,9 @@ class StorageService {
     }
   }
 
-  public initializeDefaultData(teacherId?: string): void {
-    const targetTeacherId = teacherId || this.currentTeacherId || 'teacher_alex_turner_college_edu';
-    const courses = this.getCourses(targetTeacherId);
-
-    if (courses.length === 0) {
-      const demo = getSampleCollegeData();
-      const allCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
-      const allStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
-      const allSessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS);
-
-      // Attach teacherId to demo data
-      const taggedCourses = demo.courses.map(c => ({ ...c, teacherId: targetTeacherId }));
-      const taggedStudents = demo.students.map(s => ({ ...s, teacherId: targetTeacherId }));
-      const taggedSessions = demo.sessions.map(sess => ({ ...sess, teacherId: targetTeacherId }));
-
-      this.setLocalData(STORAGE_KEYS.COURSES, [...allCourses, ...taggedCourses]);
-      this.setLocalData(STORAGE_KEYS.STUDENTS, [...allStudents, ...taggedStudents]);
-      this.setLocalData(STORAGE_KEYS.SESSIONS, [...allSessions, ...taggedSessions]);
-    }
+  public initializeDefaultData(_teacherId?: string): void {
+    // Ensure shared curriculum programs, subjects, and sections catalog is available
+    this.initializeCurriculumData();
   }
 
   // --- CURRICULUM ADMIN CRUD (Global Shared) ---

@@ -16,9 +16,9 @@ export const authService = {
   },
 
   login(name: string, email: string, department: string = 'College Faculty', programId?: string): TeacherUser {
-    const cleanEmail = email.trim().toLowerCase() || 'professor@college.edu';
-    const cleanName = name.trim() || 'Professor Alex Turner';
-    const cleanDept = department.trim() || 'Computer Science & IT';
+    const cleanName = name.trim() || 'Faculty Member';
+    const cleanEmail = email.trim().toLowerCase() || `${cleanName.toLowerCase().replace(/\s+/g, '.') || 'faculty'}@college.edu`;
+    const cleanDept = department.trim() || 'College Faculty';
 
     // Generate stable teacher ID from normalized email
     const safeEmailKey = cleanEmail.replace(/[^a-z0-9]/g, '_');
@@ -32,10 +32,6 @@ export const authService = {
     };
     localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(user));
     return user;
-  },
-
-  quickDemoLogin(): TeacherUser {
-    return this.login('Prof. Alexander Turner', 'alex.turner@college.edu', 'Department of Computer Studies', 'prog_bsit');
   },
 
   logout(): void {

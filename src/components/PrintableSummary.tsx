@@ -42,7 +42,7 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
   const [programHeader, setProgramHeader] = useState('BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)');
   const [documentTitle, setDocumentTitle] = useState('DAILY CLASS ATTENDANCE MONITORING');
   const [academicYear, setAcademicYear] = useState(course.semester || 'Second Semester, A.Y. 2025-2026');
-  const [instructorName, setInstructorName] = useState(teacher?.name || 'Prof. Alexander Turner');
+  const [instructorName, setInstructorName] = useState(teacher?.name || 'Faculty Instructor');
 
   const [showConfig, setShowConfig] = useState(false);
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GraduationCap, Sparkles, UserCheck, ShieldCheck } from 'lucide-react';
+import { GraduationCap, UserCheck, ShieldCheck } from 'lucide-react';
 import { TeacherUser, CurriculumProgram } from '../types';
 import { authService } from '../services/authService';
 import { storageService } from '../services/storageService';
@@ -22,11 +22,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     onLoginSuccess(user);
   };
 
-  const handleQuickDemoLogin = () => {
-    const user = authService.quickDemoLogin();
-    onLoginSuccess(user);
-  };
-
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', background: 'var(--bg-main)' }}>
       <div style={{ width: '100%', maxWidth: '440px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-md)', padding: '2rem 1.5rem', textAlign: 'center' }}>
@@ -42,22 +37,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
           College Faculty & Teacher Attendance Portal
         </p>
-
-        {/* 1-Tap Quick Demo Login */}
-        <button
-          className="btn btn-primary"
-          style={{ width: '100%', padding: '0.75rem', marginBottom: '1.25rem', fontSize: '0.95rem' }}
-          onClick={handleQuickDemoLogin}
-        >
-          <Sparkles size={18} />
-          Quick Sign In (Prof. Turner - BSIT)
-        </button>
-
-        <div style={{ display: 'flex', alignItems: 'center', margin: '1rem 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-          <hr style={{ flex: 1, borderColor: 'var(--border-color)' }} />
-          <span style={{ padding: '0 0.6rem' }}>OR SIGN UP / IN WITH YOUR PROGRAM</span>
-          <hr style={{ flex: 1, borderColor: 'var(--border-color)' }} />
-        </div>
 
         <form onSubmit={handleCustomLogin} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', textAlign: 'left' }}>
           <div className="form-group">
