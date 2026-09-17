@@ -9,6 +9,7 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 const STORAGE_KEY_AUTH = 'uniattend_teacher_auth';
+const STORAGE_KEY_RECENT_ACCOUNTS = 'uniattend_recent_teacher_accounts';
 
 export const authService = {
   getCurrentUser(): TeacherUser | null {
@@ -21,6 +22,46 @@ export const authService = {
       console.error('Error loading auth user', e);
     }
     return null;
+  },
+
+  getRecentAccounts(): TeacherUser[] {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY_RECENT_ACCOUNTS);
+      if (data) {
+        return JSON.parse(data);
+      }
+    } catch (e) {
+      console.error('Error loading recent accounts', e);
+    }
+    return [];
+  },
+
+  saveRecentAccount(teacher: TeacherUser): void {
+    try {
+      const current = this.getRecentAccounts();
+      const filtered = current.filter(
+        a => a.email.toLowerCase() !== teacher.email.toLowerCase() && a.id !== teacher.id
+      );
+      // Put most recent at the top, max 5 accounts
+      const updated = [teacher, ...filtered].slice(0, 5);
+      localStorage.setItem(STORAGE_KEY_RECENT_ACCOUNTS, JSON.stringify(updated));
+    } catch (e) {
+      console.error('Error saving recent account', e);
+    }
+  },
+
+  removeRecentAccount(emailOrId: string): TeacherUser[] {
+    try {
+      const current = this.getRecentAccounts();
+      const updated = current.filter(
+        a => a.id !== emailOrId && a.email.toLowerCase() !== emailOrId.toLowerCase()
+      );
+      localStorage.setItem(STORAGE_KEY_RECENT_ACCOUNTS, JSON.stringify(updated));
+      return updated;
+    } catch (e) {
+      console.error('Error removing recent account', e);
+      return [];
+    }
   },
 
   formatAuthError(error: any): string {
@@ -105,6 +146,7 @@ export const authService = {
     };
 
     localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(teacher));
+    this.saveRecentAccount(teacher);
     return teacher;
   },
 
@@ -163,6 +205,7 @@ export const authService = {
     }
 
     localStorage.setItem(STORAGE_KEY_AUTH, JSON.stringify(teacher));
+    this.saveRecentAccount(teacher);
     return teacher;
   },
 
