@@ -216,13 +216,13 @@ export function App() {
 
   // Course Actions
   const handleSaveCourse = async (course: Course, selectedSectionId?: string) => {
-    await storageService.saveCourse(course);
+    let newStudents: Student[] = [];
 
     // If teacher selected an existing block section, auto-enroll that section's students!
     if (selectedSectionId) {
       const sec = storageService.getSectionById(selectedSectionId);
       if (sec && sec.students && sec.students.length > 0) {
-        const newStudents: Student[] = sec.students.map((ms, idx) => ({
+        newStudents = sec.students.map((ms, idx) => ({
           id: `stu_${course.id}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
           teacherId: teacher?.id,
           studentId: ms.studentId,
@@ -233,9 +233,11 @@ export function App() {
           yearLevel: sec.yearLevel,
           createdAt: Date.now()
         }));
-        await storageService.saveStudentsBulk(newStudents);
       }
     }
+
+    // Save Course and Students together atomically
+    await storageService.saveCourseWithStudents(course, newStudents, teacher?.id);
 
     refreshLocalData();
     setSelectedCourseId(course.id);

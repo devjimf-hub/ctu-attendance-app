@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Users, Upload, FileText, CheckCircle2 } from 'lucide-react';
-import { Student } from '../types';
+import { X, Users, Upload, FileText, CheckCircle2, BookOpen } from 'lucide-react';
+import { Student, CurriculumSection } from '../types';
 import { parseStudentBulkInput } from '../utils/collegeUtils';
+import { storageService } from '../services/storageService';
 
 interface StudentBulkModalProps {
   isOpen: boolean;
@@ -20,7 +21,11 @@ export const StudentBulkModal: React.FC<StudentBulkModalProps> = ({
   existingStudentsCount,
   onAddStudents
 }) => {
-  const [activeMode, setActiveMode] = useState<'bulk' | 'single'>('bulk');
+  const sections: CurriculumSection[] = storageService.getSections();
+  const [activeMode, setActiveMode] = useState<'section' | 'bulk' | 'single'>('section');
+
+  // Pre-configured section import
+  const [selectedSectionId, setSelectedSectionId] = useState<string>(sections[0]?.id || '');
 
   // Single mode state
   const [singleId, setSingleId] = useState('');
@@ -33,6 +38,26 @@ export const StudentBulkModal: React.FC<StudentBulkModalProps> = ({
   const [parsedPreview, setParsedPreview] = useState<Omit<Student, 'id' | 'createdAt'>[]>([]);
 
   if (!isOpen) return null;
+
+  const selectedSectionObj = storageService.getSectionById(selectedSectionId) || sections.find(s => s.id === selectedSectionId);
+
+  const handleImportSectionStudents = () => {
+    if (!selectedSectionObj || !selectedSectionObj.students || selectedSectionObj.students.length === 0) return;
+
+    const newStudents: Student[] = selectedSectionObj.students.map((ms, idx) => ({
+      id: `stu_${courseId}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+      studentId: ms.studentId,
+      name: ms.name,
+      email: ms.email,
+      courseId,
+      major: selectedSectionObj.name,
+      yearLevel: selectedSectionObj.yearLevel,
+      createdAt: Date.now()
+    }));
+
+    onAddStudents(newStudents);
+    onClose();
+  };
 
   const handleBulkTextChange = (text: string) => {
     setBulkText(text);
@@ -114,7 +139,7 @@ Fiona Gallagher`;
             <div>
               <h3 className="modal-title">Add Students to {courseCode}</h3>
               <p className="modal-subtitle">
-                Fast roster import with automatic Student ID detection & name formatting
+                Select official class section roster or import via paste / CSV
               </p>
             </div>
           </div>
@@ -128,11 +153,19 @@ Fiona Gallagher`;
           <div className="segmented-control">
             <button
               type="button"
+              className={`tab-button ${activeMode === 'section' ? 'active' : ''}`}
+              onClick={() => setActiveMode('section')}
+            >
+              <BookOpen size={15} />
+              Official Section Roster
+            </button>
+            <button
+              type="button"
               className={`tab-button ${activeMode === 'bulk' ? 'active' : ''}`}
               onClick={() => setActiveMode('bulk')}
             >
               <FileText size={15} />
-              Smart Bulk Paste / CSV
+              Paste / CSV
             </button>
             <button
               type="button"
@@ -145,7 +178,65 @@ Fiona Gallagher`;
           </div>
         </div>
 
-        {activeMode === 'bulk' ? (
+        {/* MODE 1: Official Section Roster Selector */}
+        {activeMode === 'section' && (
+          <div className="modal-body">
+            <div className="form-group">
+              <label className="form-label">Select Official Section Roster</label>
+              <select
+                className="form-select"
+                value={selectedSectionId}
+                onChange={e => setSelectedSectionId(e.target.value)}
+              >
+                {sections.map(sec => (
+                  <option key={sec.id} value={sec.id}>
+                    {sec.name} — {sec.yearLevel} ({sec.students?.length || 0} students)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedSectionObj && selectedSectionObj.students && selectedSectionObj.students.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--google-green)', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <CheckCircle2 size={16} />
+                    <span>{selectedSectionObj.students.length} students enrolled in {selectedSectionObj.name}:</span>
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Alphabetical CTU Roster
+                  </span>
+                </div>
+
+                <div style={{ maxHeight: '200px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                    <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-surface-elevated)', zIndex: 2 }}>
+                      <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', color: 'var(--text-muted)' }}>
+                        <th style={{ padding: '0.5rem 0.65rem', width: '120px' }}>Student ID</th>
+                        <th style={{ padding: '0.5rem 0.65rem' }}>Student Name</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedSectionObj.students.map((s, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <td style={{ padding: '0.45rem 0.65rem', fontFamily: 'monospace', color: 'var(--primary)', fontWeight: 600 }}>{s.studentId}</td>
+                          <td style={{ padding: '0.45rem 0.65rem', fontWeight: 600 }}>{s.name}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                No students found in this section.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* MODE 2: Bulk Text / CSV */}
+        {activeMode === 'bulk' && (
           <div className="modal-body">
             <div className="form-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -224,7 +315,10 @@ Fiona Gallagher`;
               </div>
             )}
           </div>
-        ) : (
+        )}
+
+        {/* MODE 3: Single Student */}
+        {activeMode === 'single' && (
           <form onSubmit={handleSaveSingle}>
             <div className="modal-body">
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
@@ -287,6 +381,24 @@ Fiona Gallagher`;
           </form>
         )}
 
+        {/* Footer for Section Roster Mode */}
+        {activeMode === 'section' && (
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!selectedSectionObj || !selectedSectionObj.students || selectedSectionObj.students.length === 0}
+              onClick={handleImportSectionStudents}
+            >
+              Enroll {selectedSectionObj?.students?.length || 0} Students to Class
+            </button>
+          </div>
+        )}
+
+        {/* Footer for Bulk Mode */}
         {activeMode === 'bulk' && (
           <div className="modal-footer">
             <button type="button" className="btn btn-secondary" onClick={onClose}>

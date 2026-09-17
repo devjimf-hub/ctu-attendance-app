@@ -247,12 +247,23 @@ class StorageService {
   }
 
   public getSections(programId?: string): CurriculumSection[] {
-    const sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS);
+    let sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS);
+    if (!sections || sections.length === 0) {
+      const sample = getSampleCurriculumData();
+      sections = sample.sections;
+      this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
+    }
     return programId ? sections.filter(s => s.programId === programId) : sections;
   }
 
   public getSectionById(sectionId: string): CurriculumSection | undefined {
-    return this.getSections().find(s => s.id === sectionId);
+    let sec = this.getSections().find(s => s.id === sectionId || s.name.toLowerCase() === sectionId.toLowerCase());
+    if (!sec || !sec.students || sec.students.length === 0) {
+      const sample = getSampleCurriculumData();
+      const fallbackSec = sample.sections.find(s => s.id === sectionId || s.name.toLowerCase() === sectionId.toLowerCase());
+      if (fallbackSec) return fallbackSec;
+    }
+    return sec;
   }
 
   public saveSection(section: CurriculumSection): void {
@@ -297,6 +308,41 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.COURSES, courses);
     this.addPendingSync({ type: 'course', action: 'upsert', data: updatedCourse, teacherId: targetTeacherId });
+    this.syncWithFirebase();
+  }
+
+  public async saveCourseWithStudents(course: Course, newStudents: Student[], teacherId?: string): Promise<void> {
+    const targetTeacherId = teacherId || course.teacherId || this.currentTeacherId || undefined;
+    const updatedCourse: Course = { ...course, teacherId: targetTeacherId };
+
+    // 1. Save Course
+    const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
+    const index = courses.findIndex(c => c.id === updatedCourse.id);
+    if (index >= 0) {
+      courses[index] = updatedCourse;
+    } else {
+      courses.push(updatedCourse);
+    }
+    this.setLocalData(STORAGE_KEYS.COURSES, courses);
+    this.addPendingSync({ type: 'course', action: 'upsert', data: updatedCourse, teacherId: targetTeacherId });
+
+    // 2. Save Students together atomically
+    if (newStudents && newStudents.length > 0) {
+      const allStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
+      const existingIds = new Set(allStudents.map(s => s.id));
+      const combined = [...allStudents];
+
+      for (const s of newStudents) {
+        const studentWithTeacher = { ...s, teacherId: targetTeacherId };
+        if (!existingIds.has(studentWithTeacher.id)) {
+          combined.push(studentWithTeacher);
+          this.addPendingSync({ type: 'student', action: 'upsert', data: studentWithTeacher, teacherId: targetTeacherId });
+        }
+      }
+      this.setLocalData(STORAGE_KEYS.STUDENTS, combined);
+    }
+
+    // 3. Trigger cloud sync
     this.syncWithFirebase();
   }
 
@@ -480,28 +526,43 @@ class StorageService {
         getDocs(collection(db, 'curriculum_sections')).catch(() => null)
       ]);
 
-      // Merge remote items for this teacher into local store
-      if (!courseSnap.empty || !studentSnap.empty || !sessionSnap.empty) {
-        // Update courses
-        const existingCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES)
-          .filter(c => teacherId ? c.teacherId !== teacherId : false);
-        const remoteCourses: Course[] = [];
-        courseSnap.forEach(d => remoteCourses.push(d.data() as Course));
-        this.setLocalData(STORAGE_KEYS.COURSES, [...existingCourses, ...remoteCourses]);
+      // Non-destructive Map-based merge for courses
+      if (courseSnap && !courseSnap.empty) {
+        const localCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
+        const courseMap = new Map<string, Course>();
+        localCourses.forEach(c => courseMap.set(c.id, c));
+        courseSnap.forEach(d => {
+          const remoteCourse = d.data() as Course;
+          courseMap.set(remoteCourse.id, remoteCourse);
+        });
+        this.setLocalData(STORAGE_KEYS.COURSES, Array.from(courseMap.values()));
+      }
 
-        // Update students
-        const existingStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS)
-          .filter(s => teacherId ? s.teacherId !== teacherId : false);
-        const remoteStudents: Student[] = [];
-        studentSnap.forEach(d => remoteStudents.push(d.data() as Student));
-        this.setLocalData(STORAGE_KEYS.STUDENTS, [...existingStudents, ...remoteStudents]);
+      // Non-destructive Map-based merge for students (preserves newly added local students!)
+      if (studentSnap && !studentSnap.empty) {
+        const localStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
+        const studentMap = new Map<string, Student>();
+        localStudents.forEach(s => studentMap.set(s.id, s));
+        studentSnap.forEach(d => {
+          const remoteStudent = d.data() as Student;
+          studentMap.set(remoteStudent.id, remoteStudent);
+        });
+        this.setLocalData(STORAGE_KEYS.STUDENTS, Array.from(studentMap.values()));
+      }
 
-        // Update sessions
-        const existingSessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS)
-          .filter(sess => teacherId ? sess.teacherId !== teacherId : false);
-        const remoteSessions: AttendanceSession[] = [];
-        sessionSnap.forEach(d => remoteSessions.push(d.data() as AttendanceSession));
-        this.setLocalData(STORAGE_KEYS.SESSIONS, [...existingSessions, ...remoteSessions]);
+      // Non-destructive Map-based merge for sessions
+      if (sessionSnap && !sessionSnap.empty) {
+        const localSessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS);
+        const sessionMap = new Map<string, AttendanceSession>();
+        localSessions.forEach(s => sessionMap.set(s.id, s));
+        sessionSnap.forEach(d => {
+          const remoteSession = d.data() as AttendanceSession;
+          const local = sessionMap.get(remoteSession.id);
+          if (!local || (remoteSession.updatedAt || 0) >= (local.updatedAt || 0)) {
+            sessionMap.set(remoteSession.id, remoteSession);
+          }
+        });
+        this.setLocalData(STORAGE_KEYS.SESSIONS, Array.from(sessionMap.values()));
       }
 
       // Merge curriculum data if available in cloud
