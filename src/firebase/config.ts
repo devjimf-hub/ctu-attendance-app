@@ -98,6 +98,10 @@ export function getFirebaseAuth(): Auth | null {
   return null;
 }
 
+export function getFirestoreDb(): Firestore | null {
+  return getFirebaseInstance().db;
+}
+
 export function resetFirebaseInstance(): void {
   cachedDb = null;
   cachedApp = null;
