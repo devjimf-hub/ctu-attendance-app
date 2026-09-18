@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, BookOpen, Trash2, Sparkles } from 'lucide-react';
-import { Course, CurriculumProgram, CurriculumSubject, CurriculumSection } from '../types';
+import { X, BookOpen, Trash2, Calendar } from 'lucide-react';
+import { Course, CurriculumProgram, CurriculumSubject, CurriculumSection, DayCode } from '../types';
 import { storageService } from '../services/storageService';
+import { DAYS_OF_WEEK, getCourseDays, formatDaysDisplay } from '../utils/collegeUtils';
 
 interface CourseModalProps {
   isOpen: boolean;
@@ -15,12 +16,30 @@ interface CourseModalProps {
 const COLOR_OPTIONS = [
   '#4f46e5', // Indigo
   '#7c3aed', // Violet
-  '#06b6d4', // Cyan
-  '#059669', // Emerald
+  '#9333ea', // Purple
+  '#c026d3', // Fuchsia
+  '#db2777', // Pink
   '#e11d48', // Rose
+  '#ea580c', // Orange
   '#d97706', // Amber
-  '#0284c7'  // Sky Blue
+  '#059669', // Emerald
+  '#0d9488', // Teal
+  '#0891b2', // Cyan
+  '#0284c7', // Sky Blue
+  '#2563eb', // Royal Blue
+  '#475569'  // Slate
 ];
+
+export const getRandomCourseColor = (): string => {
+  return COLOR_OPTIONS[Math.floor(Math.random() * COLOR_OPTIONS.length)];
+};
+
+function extractTimeFromSchedule(scheduleStr?: string): string {
+  if (!scheduleStr) return '';
+  return scheduleStr
+    .replace(/^(M|T|W|TH|F|S|SU|MON|TUE|WED|THU|THUR|FRI|SAT|SUN|\s|-|,)+/i, '')
+    .trim();
+}
 
 export const CourseModal: React.FC<CourseModalProps> = ({
   isOpen,
@@ -39,8 +58,9 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   const [selectedSectionId, setSelectedSectionId] = useState<string>('');
   const [semester, setSemester] = useState('1st Semester 2026-2027');
   const [room, setRoom] = useState('');
-  const [schedule, setSchedule] = useState('');
-  const [color, setColor] = useState(COLOR_OPTIONS[0]);
+  const [selectedDays, setSelectedDays] = useState<DayCode[]>(['M', 'W', 'F']);
+  const [time, setTime] = useState('');
+  const [color, setColor] = useState(() => getRandomCourseColor());
   const [isCustomSubject, setIsCustomSubject] = useState(false);
   const [isCustomSection, setIsCustomSection] = useState(false);
 
@@ -55,12 +75,14 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setSection(initialCourse.section);
       setSemester(initialCourse.semester || '1st Semester 2026-2027');
       setRoom(initialCourse.room || '');
-      setSchedule(initialCourse.schedule || '');
-      setColor(initialCourse.color || COLOR_OPTIONS[0]);
+      const parsedDays = getCourseDays(initialCourse);
+      setSelectedDays(parsedDays.length > 0 ? parsedDays : ['M', 'W', 'F']);
+      setTime(initialCourse.time || extractTimeFromSchedule(initialCourse.schedule) || '');
+      setColor(initialCourse.color || getRandomCourseColor());
       setIsCustomSubject(true);
       setIsCustomSection(true);
       setSelectedSectionId('');
-    } else {
+    } else if (isOpen) {
       const defaultSubjs = storageService.getSubjects(effectiveProgramId);
       const defaultSecs = storageService.getSections(effectiveProgramId);
 
@@ -86,8 +108,10 @@ export const CourseModal: React.FC<CourseModalProps> = ({
 
       setSemester('1st Semester 2026-2027');
       setRoom('');
-      setSchedule('');
-      setColor(COLOR_OPTIONS[0]);
+      setSelectedDays(['M', 'W', 'F']);
+      setTime('');
+      // Assign a random color when creating a new subject
+      setColor(getRandomCourseColor());
     }
   }, [initialCourse, isOpen, effectiveProgramId]);
 
@@ -123,11 +147,21 @@ export const CourseModal: React.FC<CourseModalProps> = ({
     }
   };
 
+  // Day toggle
+  const toggleDay = (day: DayCode) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) return;
+
+    const formattedDays = formatDaysDisplay(selectedDays);
+    const fullSchedule = [formattedDays, time.trim()].filter(Boolean).join(' ');
 
     const courseData: Course = {
       id: initialCourse ? initialCourse.id : `course_${Date.now()}`,
@@ -136,7 +170,9 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       section: section.trim() || 'Block A',
       semester: semester.trim(),
       room: room.trim() || undefined,
-      schedule: schedule.trim() || undefined,
+      days: selectedDays.length > 0 ? selectedDays : undefined,
+      time: time.trim() || undefined,
+      schedule: fullSchedule || undefined,
       color,
       createdAt: initialCourse ? initialCourse.createdAt : Date.now()
     };
@@ -144,8 +180,6 @@ export const CourseModal: React.FC<CourseModalProps> = ({
     onSave(courseData, !initialCourse && !isCustomSection ? selectedSectionId : undefined);
     onClose();
   };
-
-  const selectedSectionObj = availableSections.find(s => s.id === selectedSectionId);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -156,7 +190,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               <BookOpen size={20} />
             </div>
             <div>
-              <h3 className="modal-title">{initialCourse ? 'Edit Subject / Class' : 'Add College Subject / Class'}</h3>
+              <h3 className="modal-title">{initialCourse ? 'Edit Class' : 'Add Class'}</h3>
               <p className="modal-subtitle">Auto-filled from degree curriculum & section rosters</p>
             </div>
           </div>
@@ -165,21 +199,20 @@ export const CourseModal: React.FC<CourseModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             
-            {/* Subject Code (Dropdown or Custom) & Block Section (Dropdown or Custom) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
-              
+            {/* Row 1: Subject Code & Section */}
+            <div className="form-row-2col">
               {/* Subject Code Selector */}
               <div className="form-group">
-                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>Subject Code *</span>
                   {availableSubjects.length > 0 && (
                     <button
                       type="button"
                       className="btn-ghost"
-                      style={{ padding: 0, fontSize: '0.75rem', color: 'var(--primary)', height: 'auto' }}
+                      style={{ padding: '0 0.25rem', fontSize: '0.75rem', color: 'var(--primary)', height: 'auto', fontWeight: 600 }}
                       onClick={() => setIsCustomSubject(!isCustomSubject)}
                     >
                       {isCustomSubject ? 'Pick from List' : 'Custom'}
@@ -196,7 +229,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                   >
                     {availableSubjects.map(s => (
                       <option key={s.id} value={s.code}>
-                        {s.code} ({s.name})
+                        {s.code} — {s.name}
                       </option>
                     ))}
                     <option value="__custom__">+ Enter Custom Code...</option>
@@ -216,13 +249,13 @@ export const CourseModal: React.FC<CourseModalProps> = ({
 
               {/* Section / Block Selector */}
               <div className="form-group">
-                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span>Section / Block *</span>
                   {availableSections.length > 0 && (
                     <button
                       type="button"
                       className="btn-ghost"
-                      style={{ padding: 0, fontSize: '0.75rem', color: 'var(--primary)', height: 'auto' }}
+                      style={{ padding: '0 0.25rem', fontSize: '0.75rem', color: 'var(--primary)', height: 'auto', fontWeight: 600 }}
                       onClick={() => setIsCustomSection(!isCustomSection)}
                     >
                       {isCustomSection ? 'Pick from List' : 'Custom'}
@@ -257,15 +290,10 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               </div>
             </div>
 
-            {/* Course Title / Subject Name (Auto-filled) */}
+            {/* Row 2: Subject Title / Course Name */}
             <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <label className="form-label">
                 <span>Subject Title / Course Name *</span>
-                {!isCustomSubject && (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--status-present)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                    <Sparkles size={12} /> Auto-filled from curriculum
-                  </span>
-                )}
               </label>
               <input
                 type="text"
@@ -277,13 +305,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               />
             </div>
 
-            {/* Auto-enroll notice if section has students */}
-            {!initialCourse && !isCustomSection && selectedSectionObj && selectedSectionObj.students && selectedSectionObj.students.length > 0 && (
-              <div style={{ padding: '0.65rem 0.85rem', background: 'var(--status-present-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(21, 128, 61, 0.2)', fontSize: '0.8rem', color: 'var(--status-present)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span>👥 <strong>{selectedSectionObj.students.length} pre-enrolled students</strong> from <strong>{selectedSectionObj.name}</strong> will be automatically enrolled in your class roster!</span>
-              </div>
-            )}
-
+            {/* Row 3: Semester */}
             <div className="form-group">
               <label className="form-label">Semester / Term</label>
               <input
@@ -295,7 +317,8 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem' }}>
+            {/* Row 4: Room & Time */}
+            <div className="form-row-2col">
               <div className="form-group">
                 <label className="form-label">Room / Hall / Lab</label>
                 <input
@@ -308,18 +331,45 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               </div>
 
               <div className="form-group">
-                <label className="form-label">Schedule / Days</label>
+                <label className="form-label">Class Time / Period</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="e.g. MWF 9:00 - 10:30 AM"
-                  value={schedule}
-                  onChange={e => setSchedule(e.target.value)}
+                  placeholder="e.g. 9:00 - 10:30 AM"
+                  value={time}
+                  onChange={e => setTime(e.target.value)}
                 />
               </div>
             </div>
 
-            {/* Accent Color Picker */}
+            {/* Row 5: Class Schedule Days */}
+            <div className="form-group">
+              <label className="form-label" style={{ marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Calendar size={14} />
+                <span>Class Schedule Days (M T W TH F S SU) *</span>
+              </label>
+
+              {/* Day selection buttons */}
+              <div className="day-selector-row">
+                {DAYS_OF_WEEK.map(d => {
+                  const isSelected = selectedDays.includes(d.code);
+                  return (
+                    <button
+                      key={d.code}
+                      type="button"
+                      className={`day-selector-btn ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleDay(d.code)}
+                      title={`${d.full} (${d.code})`}
+                    >
+                      <span className="day-btn-label">{d.label}</span>
+                      <span className="day-btn-sub">{d.full.slice(0, 3)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Row 6: Accent Color Picker */}
             <div className="form-group">
               <label className="form-label">Course Color Tag</label>
               <div className="color-picker-row">
@@ -356,7 +406,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               Cancel
             </button>
             <button type="submit" className="btn btn-primary">
-              {initialCourse ? 'Save Changes' : 'Create Subject & Class'}
+              {initialCourse ? 'Save Changes' : 'Create Class'}
             </button>
           </div>
         </form>

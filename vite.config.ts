@@ -9,8 +9,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg', 'icons/*.png'],
       manifest: {
-        name: 'UniAttend - College Attendance System',
-        short_name: 'UniAttend',
+        name: 'Class Check - College Attendance System',
+        short_name: 'Class Check',
         description: 'Offline-First Student Attendance System for College Professors & Lecturers',
         theme_color: '#4f46e5',
         background_color: '#0f172a',

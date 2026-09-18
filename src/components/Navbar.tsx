@@ -41,10 +41,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="header-left">
         <div className="header-title-group">
           <div className="app-logo-icon" style={{ background: 'transparent', padding: 0, overflow: 'hidden' }}>
-            <img src="/logo.webp" alt="CTU UniAttend Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+            <img src="/logo.webp" alt="CTU Class Check Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
           </div>
           <span className="header-app-name">
-            UniAttend
+            Class Check
           </span>
         </div>
       </div>

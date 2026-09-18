@@ -40,8 +40,11 @@ interface PendingSyncItem {
 
 class StorageService {
   private syncListeners: ((status: SyncStatus) => void)[] = [];
+  private dataListeners: (() => void)[] = [];
   private isSyncing = false;
   private currentTeacherId: string | null = null;
+  private syncDebounceTimer: any = null;
+  private periodicSyncInterval: any = null;
 
   constructor() {
     this.initializeCurriculumData();
@@ -50,11 +53,36 @@ class StorageService {
     if (typeof window !== 'undefined') {
       window.addEventListener('online', () => {
         this.notifyStatusChange();
-        this.syncWithFirebase();
+        this.syncWithFirebase(true);
       });
       window.addEventListener('offline', () => {
         this.notifyStatusChange();
       });
+
+      // Background sync when returning to tab
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && navigator.onLine && !this.isSyncing) {
+          this.syncWithFirebase(false);
+        }
+      });
+
+      // Periodic auto-sync heartbeat every 3 minutes
+      this.periodicSyncInterval = setInterval(() => {
+        if (navigator.onLine && !this.isSyncing && !this.syncDebounceTimer) {
+          this.syncWithFirebase(false);
+        }
+      }, 180000);
+    }
+  }
+
+  public destroy(): void {
+    if (this.syncDebounceTimer) {
+      clearTimeout(this.syncDebounceTimer);
+      this.syncDebounceTimer = null;
+    }
+    if (this.periodicSyncInterval) {
+      clearInterval(this.periodicSyncInterval);
+      this.periodicSyncInterval = null;
     }
   }
 
@@ -62,7 +90,7 @@ class StorageService {
     this.currentTeacherId = teacherId;
     this.notifyStatusChange();
     if (teacherId) {
-      this.syncWithFirebase();
+      this.syncWithFirebase(true);
     }
   }
 
@@ -78,9 +106,32 @@ class StorageService {
     };
   }
 
+  public subscribeToDataChange(listener: () => void): () => void {
+    this.dataListeners.push(listener);
+    return () => {
+      this.dataListeners = this.dataListeners.filter(l => l !== listener);
+    };
+  }
+
   private notifyStatusChange(): void {
     const status = this.getSyncStatus();
-    this.syncListeners.forEach(listener => listener(status));
+    this.syncListeners.forEach(listener => {
+      try {
+        listener(status);
+      } catch (e) {
+        console.error('Error in sync listener:', e);
+      }
+    });
+  }
+
+  private notifyDataChange(): void {
+    this.dataListeners.forEach(listener => {
+      try {
+        listener();
+      } catch (e) {
+        console.error('Error in data change listener:', e);
+      }
+    });
   }
 
   public getSyncStatus(): SyncStatus {
@@ -124,29 +175,59 @@ class StorageService {
     return allPending.filter(p => !p.teacherId || p.teacherId === this.currentTeacherId);
   }
 
+  /**
+   * Smart queue coalescing:
+   * Replaces duplicate pending modifications for the same entity with the latest state,
+   * keeping the queue small and preventing redundant network payload transfers.
+   */
   private addPendingSync(item: Omit<PendingSyncItem, 'id' | 'timestamp'>): void {
     const items = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC);
+    const targetTeacherId = item.teacherId || this.currentTeacherId || undefined;
+    const entityId = item.data?.id;
+
+    // Check if an entry for this exact entity already exists in the pending queue
+    const existingIndex = items.findIndex(
+      p => p.type === item.type && p.data?.id === entityId && p.teacherId === targetTeacherId
+    );
+
     const syncItem: PendingSyncItem = {
       ...item,
-      teacherId: item.teacherId || this.currentTeacherId || undefined,
-      id: `${item.type}_${item.data?.id || Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      teacherId: targetTeacherId,
+      id: `${item.type}_${entityId || Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       timestamp: Date.now()
     };
-    items.push(syncItem);
+
+    if (existingIndex >= 0) {
+      // Coalesce: Replace with the freshest state
+      items[existingIndex] = syncItem;
+    } else {
+      items.push(syncItem);
+    }
+
     this.setLocalData(STORAGE_KEYS.PENDING_SYNC, items);
     this.notifyStatusChange();
   }
 
-  private clearPendingSync(teacherId?: string): void {
-    if (!teacherId) {
-      this.setLocalData(STORAGE_KEYS.PENDING_SYNC, []);
-    } else {
-      const remaining = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC)
-        .filter(item => item.teacherId && item.teacherId !== teacherId);
-      this.setLocalData(STORAGE_KEYS.PENDING_SYNC, remaining);
-    }
+  private removeCommittedPendingItems(committedIds: Set<string>): void {
+    const items = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC);
+    const remaining = items.filter(item => !committedIds.has(item.id));
+    this.setLocalData(STORAGE_KEYS.PENDING_SYNC, remaining);
     localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
     this.notifyStatusChange();
+  }
+
+  /**
+   * Schedules a debounced background sync.
+   * Eliminates UI lag and network storms during rapid clicks (like roll call attendance).
+   */
+  public scheduleDebouncedSync(delayMs: number = 800): void {
+    if (this.syncDebounceTimer) {
+      clearTimeout(this.syncDebounceTimer);
+    }
+    this.syncDebounceTimer = setTimeout(() => {
+      this.syncDebounceTimer = null;
+      this.syncWithFirebase(false);
+    }, delayMs);
   }
 
   // --- INITIALIZATION / SEEDING ---
@@ -203,7 +284,7 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.PROGRAMS, programs);
     this.addPendingSync({ type: 'program', action: 'upsert', data: program });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public deleteProgram(programId: string): void {
@@ -218,7 +299,7 @@ class StorageService {
     this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
 
     this.addPendingSync({ type: 'program', action: 'delete', data: { id: programId } });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public getSubjects(programId?: string): CurriculumSubject[] {
@@ -236,14 +317,14 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.SUBJECTS, subjects);
     this.addPendingSync({ type: 'subject', action: 'upsert', data: subject });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public deleteSubject(subjectId: string): void {
     const subjects = this.getLocalData<CurriculumSubject>(STORAGE_KEYS.SUBJECTS).filter(s => s.id !== subjectId);
     this.setLocalData(STORAGE_KEYS.SUBJECTS, subjects);
     this.addPendingSync({ type: 'subject', action: 'delete', data: { id: subjectId } });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public getSections(programId?: string): CurriculumSection[] {
@@ -276,14 +357,14 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
     this.addPendingSync({ type: 'section', action: 'upsert', data: section });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public deleteSection(sectionId: string): void {
     const sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS).filter(s => s.id !== sectionId);
     this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
     this.addPendingSync({ type: 'section', action: 'delete', data: { id: sectionId } });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   // --- COURSES CRUD (Teacher Isolated) ---
@@ -291,24 +372,51 @@ class StorageService {
   public getCourses(teacherId?: string): Course[] {
     const targetId = teacherId || this.currentTeacherId;
     const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
-    if (!targetId) return courses;
-    return courses.filter(c => !c.teacherId || c.teacherId === targetId);
+    const filtered = !targetId ? courses : courses.filter(c => !c.teacherId || c.teacherId === targetId);
+    return filtered.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }
+
+  public saveCourseOrder(orderedCourses: Course[], teacherId?: string): void {
+    const targetTeacherId = teacherId || this.currentTeacherId || undefined;
+    const allCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
+    const otherCourses = targetTeacherId
+      ? allCourses.filter(c => c.teacherId && c.teacherId !== targetTeacherId)
+      : [];
+
+    const updatedCourses = orderedCourses.map((c, idx) => ({
+      ...c,
+      teacherId: targetTeacherId,
+      order: idx
+    }));
+
+    this.setLocalData(STORAGE_KEYS.COURSES, [...updatedCourses, ...otherCourses]);
+
+    updatedCourses.forEach(c => {
+      this.addPendingSync({ type: 'course', action: 'upsert', data: c, teacherId: targetTeacherId });
+    });
+    this.scheduleDebouncedSync();
   }
 
   public async saveCourse(course: Course, teacherId?: string): Promise<void> {
     const targetTeacherId = teacherId || course.teacherId || this.currentTeacherId || undefined;
-    const updatedCourse: Course = { ...course, teacherId: targetTeacherId };
-
     const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
-    const index = courses.findIndex(c => c.id === updatedCourse.id);
-    if (index >= 0) {
-      courses[index] = updatedCourse;
+    const existingIndex = courses.findIndex(c => c.id === course.id);
+    const calculatedOrder = course.order !== undefined
+      ? course.order
+      : existingIndex >= 0
+      ? courses[existingIndex].order
+      : courses.length;
+
+    const updatedCourse: Course = { ...course, teacherId: targetTeacherId, order: calculatedOrder };
+
+    if (existingIndex >= 0) {
+      courses[existingIndex] = updatedCourse;
     } else {
       courses.push(updatedCourse);
     }
     this.setLocalData(STORAGE_KEYS.COURSES, courses);
     this.addPendingSync({ type: 'course', action: 'upsert', data: updatedCourse, teacherId: targetTeacherId });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public async saveCourseWithStudents(course: Course, newStudents: Student[], teacherId?: string): Promise<void> {
@@ -326,7 +434,7 @@ class StorageService {
     this.setLocalData(STORAGE_KEYS.COURSES, courses);
     this.addPendingSync({ type: 'course', action: 'upsert', data: updatedCourse, teacherId: targetTeacherId });
 
-    // 2. Save Students together atomically
+    // 2. Save Students together
     if (newStudents && newStudents.length > 0) {
       const allStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
       const existingIds = new Set(allStudents.map(s => s.id));
@@ -342,8 +450,8 @@ class StorageService {
       this.setLocalData(STORAGE_KEYS.STUDENTS, combined);
     }
 
-    // 3. Trigger cloud sync
-    this.syncWithFirebase();
+    // 3. Trigger debounced sync
+    this.scheduleDebouncedSync();
   }
 
   public async deleteCourse(courseId: string, teacherId?: string): Promise<void> {
@@ -363,7 +471,7 @@ class StorageService {
     }
 
     this.addPendingSync({ type: 'course', action: 'delete', data: { id: courseId }, teacherId: targetTeacherId });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   // --- STUDENTS CRUD (Teacher Isolated) ---
@@ -390,7 +498,7 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.STUDENTS, students);
     this.addPendingSync({ type: 'student', action: 'upsert', data: updatedStudent, teacherId: targetTeacherId });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public async saveStudentsBulk(newStudents: Student[], teacherId?: string): Promise<void> {
@@ -408,7 +516,7 @@ class StorageService {
     }
 
     this.setLocalData(STORAGE_KEYS.STUDENTS, combined);
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public async deleteStudent(studentId: string, teacherId?: string): Promise<void> {
@@ -416,7 +524,7 @@ class StorageService {
     const students = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS).filter(s => s.id !== studentId);
     this.setLocalData(STORAGE_KEYS.STUDENTS, students);
     this.addPendingSync({ type: 'student', action: 'delete', data: { id: studentId }, teacherId: targetTeacherId });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   // --- ATTENDANCE SESSIONS CRUD (Teacher Isolated) ---
@@ -448,7 +556,7 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.SESSIONS, sessions);
     this.addPendingSync({ type: 'session', action: 'upsert', data: updatedSession, teacherId: targetTeacherId });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   public async deleteSession(sessionId: string, teacherId?: string): Promise<void> {
@@ -456,55 +564,73 @@ class StorageService {
     const sessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS).filter(s => s.id !== sessionId);
     this.setLocalData(STORAGE_KEYS.SESSIONS, sessions);
     this.addPendingSync({ type: 'session', action: 'delete', data: { id: sessionId }, teacherId: targetTeacherId });
-    this.syncWithFirebase();
+    this.scheduleDebouncedSync();
   }
 
   // --- FIREBASE SYNC ENGINE ---
 
-  public async syncWithFirebase(): Promise<boolean> {
+  /**
+   * Pushes pending local changes to Firestore using write batches.
+   * Only clears the specific items that were successfully written.
+   */
+  public async pushPendingChanges(): Promise<boolean> {
     const { db } = getFirebaseInstance();
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-    const teacherId = this.currentTeacherId;
+    if (!db || !isOnline) return false;
 
-    if (!db || !isOnline || this.isSyncing) {
-      return false;
-    }
+    const pending = this.getPendingSyncItems();
+    if (pending.length === 0) return true;
 
-    this.isSyncing = true;
-    this.notifyStatusChange();
+    // Take snapshot of pending items to push (up to 450 per batch)
+    const itemsToCommit = pending.slice(0, 450);
+    const committedIds = new Set<string>();
 
     try {
-      // 1. Push pending sync queue
-      const pending = this.getPendingSyncItems();
-      if (pending.length > 0) {
-        const batch = writeBatch(db);
+      const batch = writeBatch(db);
+      const teacherId = this.currentTeacherId;
 
-        for (const item of pending) {
-          let colName = 'courses';
-          if (item.type === 'student') colName = 'students';
-          else if (item.type === 'session') colName = 'sessions';
-          else if (item.type === 'program') colName = 'curriculum_programs';
-          else if (item.type === 'subject') colName = 'curriculum_subjects';
-          else if (item.type === 'section') colName = 'curriculum_sections';
+      for (const item of itemsToCommit) {
+        let colName = 'courses';
+        if (item.type === 'student') colName = 'students';
+        else if (item.type === 'session') colName = 'sessions';
+        else if (item.type === 'program') colName = 'curriculum_programs';
+        else if (item.type === 'subject') colName = 'curriculum_subjects';
+        else if (item.type === 'section') colName = 'curriculum_sections';
 
-          const docRef = doc(db, colName, item.data.id);
+        const docRef = doc(db, colName, item.data.id);
 
-          if (item.action === 'upsert') {
-            const dataToSave = {
-              ...item.data,
-              teacherId: item.data.teacherId || item.teacherId || (item.type === 'course' || item.type === 'student' || item.type === 'session' ? teacherId || 'default' : undefined)
-            };
-            batch.set(docRef, dataToSave, { merge: true });
-          } else if (item.action === 'delete') {
-            batch.delete(docRef);
-          }
+        if (item.action === 'upsert') {
+          const dataToSave = {
+            ...item.data,
+            teacherId: item.data.teacherId || item.teacherId || (item.type === 'course' || item.type === 'student' || item.type === 'session' ? teacherId || 'default' : undefined)
+          };
+          batch.set(docRef, dataToSave, { merge: true });
+        } else if (item.action === 'delete') {
+          batch.delete(docRef);
         }
-
-        await batch.commit();
-        this.clearPendingSync(teacherId || undefined);
+        committedIds.add(item.id);
       }
 
-      // 2. Fetch remote collections
+      await batch.commit();
+      this.removeCommittedPendingItems(committedIds);
+      return true;
+    } catch (err) {
+      console.warn('Firebase batch push deferred:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Pulls remote changes from Firestore and merges them non-destructively.
+   */
+  public async pullRemoteChanges(): Promise<boolean> {
+    const { db } = getFirebaseInstance();
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (!db || !isOnline) return false;
+
+    const teacherId = this.currentTeacherId;
+
+    try {
       const coursesQuery = teacherId
         ? query(collection(db, 'courses'), where('teacherId', '==', teacherId))
         : collection(db, 'courses');
@@ -526,7 +652,9 @@ class StorageService {
         getDocs(collection(db, 'curriculum_sections')).catch(() => null)
       ]);
 
-      // Non-destructive Map-based merge for courses
+      let hasNewData = false;
+
+      // Non-destructive merge for courses
       if (courseSnap && !courseSnap.empty) {
         const localCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
         const courseMap = new Map<string, Course>();
@@ -536,9 +664,10 @@ class StorageService {
           courseMap.set(remoteCourse.id, remoteCourse);
         });
         this.setLocalData(STORAGE_KEYS.COURSES, Array.from(courseMap.values()));
+        hasNewData = true;
       }
 
-      // Non-destructive Map-based merge for students (preserves newly added local students!)
+      // Non-destructive merge for students
       if (studentSnap && !studentSnap.empty) {
         const localStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
         const studentMap = new Map<string, Student>();
@@ -548,9 +677,10 @@ class StorageService {
           studentMap.set(remoteStudent.id, remoteStudent);
         });
         this.setLocalData(STORAGE_KEYS.STUDENTS, Array.from(studentMap.values()));
+        hasNewData = true;
       }
 
-      // Non-destructive Map-based merge for sessions
+      // Non-destructive merge for sessions
       if (sessionSnap && !sessionSnap.empty) {
         const localSessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS);
         const sessionMap = new Map<string, AttendanceSession>();
@@ -560,37 +690,79 @@ class StorageService {
           const local = sessionMap.get(remoteSession.id);
           if (!local || (remoteSession.updatedAt || 0) >= (local.updatedAt || 0)) {
             sessionMap.set(remoteSession.id, remoteSession);
+          } else if (local && remoteSession.records) {
+            // Merge individual student records non-destructively
+            const mergedRecords = { ...remoteSession.records, ...local.records };
+            sessionMap.set(local.id, { ...local, records: mergedRecords });
           }
         });
         this.setLocalData(STORAGE_KEYS.SESSIONS, Array.from(sessionMap.values()));
+        hasNewData = true;
       }
 
-      // Merge curriculum data if available in cloud
+      // Merge curriculum catalogs
       if (progSnap && !progSnap.empty) {
         const remoteProgs: CurriculumProgram[] = [];
         progSnap.forEach(d => remoteProgs.push(d.data() as CurriculumProgram));
         this.setLocalData(STORAGE_KEYS.PROGRAMS, remoteProgs);
+        hasNewData = true;
       }
       if (subjSnap && !subjSnap.empty) {
         const remoteSubjs: CurriculumSubject[] = [];
         subjSnap.forEach(d => remoteSubjs.push(d.data() as CurriculumSubject));
         this.setLocalData(STORAGE_KEYS.SUBJECTS, remoteSubjs);
+        hasNewData = true;
       }
       if (secSnap && !secSnap.empty) {
         const remoteSecs: CurriculumSection[] = [];
         secSnap.forEach(d => remoteSecs.push(d.data() as CurriculumSection));
         this.setLocalData(STORAGE_KEYS.SECTIONS, remoteSecs);
+        hasNewData = true;
+      }
+
+      if (hasNewData) {
+        this.notifyDataChange();
       }
 
       localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
-      this.isSyncing = false;
-      this.notifyStatusChange();
+      return true;
+    } catch (err) {
+      console.warn('Firebase pull deferred:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Full two-way sync: pushes pending local writes and pulls remote updates.
+   */
+  public async syncWithFirebase(forcePull: boolean = true): Promise<boolean> {
+    const { db } = getFirebaseInstance();
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    if (!db || !isOnline || this.isSyncing) {
+      return false;
+    }
+
+    this.isSyncing = true;
+    this.notifyStatusChange();
+
+    try {
+      // 1. Push any queued pending writes first
+      await this.pushPendingChanges();
+
+      // 2. Pull remote changes
+      if (forcePull) {
+        await this.pullRemoteChanges();
+      }
+
+      localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
       return true;
     } catch (error) {
-      console.warn('Firebase sync deferred (working in local offline mode):', error);
+      console.warn('Firebase sync notice (running local offline):', error);
+      return false;
+    } finally {
       this.isSyncing = false;
       this.notifyStatusChange();
-      return false;
     }
   }
 

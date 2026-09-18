@@ -557,11 +557,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
 
           <div className="header-title-group">
             <div className="app-logo-icon" style={{ background: 'transparent', padding: 0, overflow: 'hidden' }}>
-              <img src="/logo.webp" alt="UniAttend Logo" style={{ width: '26px', height: '26px', objectFit: 'contain' }} />
+              <img src="/logo.webp" alt="Class Check Logo" style={{ width: '26px', height: '26px', objectFit: 'contain' }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span className="header-app-name" style={{ fontSize: '1.1rem' }}>UniAttend Admin</span>
+                <span className="header-app-name" style={{ fontSize: '1.1rem' }}>Class Check Admin</span>
                 <span className="badge badge-present" style={{ fontSize: '0.7rem', padding: '0.1rem 0.45rem', textTransform: 'uppercase' }}>
                   Firebase Authenticated
                 </span>

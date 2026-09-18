@@ -1,4 +1,4 @@
-# 🎓 UniAttend - College Student Attendance System (PWA)
+# 🎓 Class Check - College Student Attendance System (PWA)
 
 > A modern, offline-first Progressive Web App (PWA) designed specifically for **College Professors, Lecturers, and University Instructors** to take daily roll calls in lecture halls/labs, easily bulk-add students, monitor exam eligibility (<75% absence drop limits), and seamlessly sync data with Firebase Firestore and Vercel.
 
@@ -104,7 +104,7 @@ npm run build
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
 2. Enable **Cloud Firestore** in test or production mode.
 3. In Project Settings, add a **Web App** and copy the configuration keys.
-4. Open UniAttend, click the ⚙️ **Settings** icon in the navbar, paste your `API Key` and `Project ID`, and click **Save & Connect Cloud**.
+4. Open Class Check, click the ⚙️ **Settings** icon in the navbar, paste your `API Key` and `Project ID`, and click **Save & Connect Cloud**.
 5. Data will now seamlessly sync across all your devices in real-time while maintaining 100% offline availability!
 
 ---

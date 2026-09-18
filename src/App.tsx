@@ -9,7 +9,7 @@ import {
 } from './types';
 import { storageService } from './services/storageService';
 import { authService } from './services/authService';
-import { calculateStudentSummaries } from './utils/collegeUtils';
+import { calculateStudentSummaries, getLocalDateString } from './utils/collegeUtils';
 
 import { LoginScreen } from './components/LoginScreen';
 import { AdminPortal } from './components/AdminPortal';
@@ -61,7 +61,7 @@ export function App() {
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
 
   // Roll Call Active Parameters
-  const [currentDate, setCurrentDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [currentDate, setCurrentDate] = useState<string>(() => getLocalDateString());
   const [currentSessionType, setCurrentSessionType] = useState<'lecture' | 'lab' | 'tutorial' | 'exam'>('lecture');
   const [currentTopic, setCurrentTopic] = useState<string>('');
 
@@ -98,8 +98,12 @@ export function App() {
       setSessions([]);
     }
 
-    const unsubscribe = storageService.subscribeToSyncStatus(status => {
+    const unsubscribeSync = storageService.subscribeToSyncStatus(status => {
       setSyncStatus(status);
+    });
+
+    const unsubscribeData = storageService.subscribeToDataChange(() => {
+      refreshLocalData();
     });
 
     const handleBeforeInstall = (e: Event) => {
@@ -111,7 +115,8 @@ export function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
     return () => {
-      unsubscribe();
+      unsubscribeSync();
+      unsubscribeData();
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
     };
   }, [teacher]);
@@ -503,6 +508,8 @@ export function App() {
         onClose={() => setIsSettingsModalOpen(false)}
         syncStatus={syncStatus}
         onSyncRefresh={refreshLocalData}
+        canInstallPwa={!!deferredPrompt}
+        onInstallPwa={handleInstallPwa}
       />
     </div>
   );

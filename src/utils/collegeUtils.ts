@@ -5,8 +5,113 @@ import {
   Course,
   CurriculumProgram,
   CurriculumSubject,
-  CurriculumSection
+  CurriculumSection,
+  DayCode
 } from '../types';
+
+export const DAYS_OF_WEEK: { code: DayCode; label: string; full: string }[] = [
+  { code: 'M', label: 'M', full: 'Monday' },
+  { code: 'T', label: 'T', full: 'Tuesday' },
+  { code: 'W', label: 'W', full: 'Wednesday' },
+  { code: 'TH', label: 'TH', full: 'Thursday' },
+  { code: 'F', label: 'F', full: 'Friday' },
+  { code: 'S', label: 'S', full: 'Saturday' },
+  { code: 'SU', label: 'SU', full: 'Sunday' }
+];
+
+/**
+ * Get current day's DayCode (e.g. 'F' for Friday, 'M' for Monday)
+ */
+export function getTodayDayCode(date: Date = new Date()): DayCode {
+  const dayIndex = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  switch (dayIndex) {
+    case 1: return 'M';
+    case 2: return 'T';
+    case 3: return 'W';
+    case 4: return 'TH';
+    case 5: return 'F';
+    case 6: return 'S';
+    case 0: return 'SU';
+    default: return 'M';
+  }
+}
+
+/**
+ * Extract day codes from course.days array or parse from course.schedule string.
+ * Supports legacy formats like "MWF", "TTH", "M-W-F", "Mon, Wed, Fri", etc.
+ */
+export function getCourseDays(course: Course): DayCode[] {
+  if (course.days && Array.isArray(course.days) && course.days.length > 0) {
+    return course.days;
+  }
+  if (!course.schedule) return [];
+
+  const upper = course.schedule.toUpperCase();
+  const matched: DayCode[] = [];
+
+  const hasTH = upper.includes('TH') || upper.includes('THUR');
+  const hasSU = upper.includes('SU') || upper.includes('SUN');
+
+  if (upper.includes('MON') || upper.includes('M')) matched.push('M');
+  if (upper.includes('TUE') || (upper.includes('T') && !upper.includes('TH') && !upper.includes('THUR'))) matched.push('T');
+  if (upper.includes('WED') || upper.includes('W')) matched.push('W');
+  if (hasTH) matched.push('TH');
+  if (upper.includes('FRI') || upper.includes('F')) matched.push('F');
+  if (upper.includes('SAT') || (upper.includes('S') && !hasSU)) matched.push('S');
+  if (hasSU) matched.push('SU');
+
+  return matched;
+}
+
+/**
+ * Format selected days into standard schedule notation (e.g., ['M', 'W', 'F'] -> "MWF", ['T', 'TH'] -> "TTH")
+ */
+export function formatDaysDisplay(days: DayCode[]): string {
+  if (!days || days.length === 0) return '';
+  const order: DayCode[] = ['M', 'T', 'W', 'TH', 'F', 'S', 'SU'];
+  const sorted = [...days].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  return sorted.join('');
+}
+
+/**
+ * Checks if a course is scheduled for a specific DayCode.
+ */
+export function isCourseScheduledForDay(course: Course, dayCode: DayCode): boolean {
+  const days = getCourseDays(course);
+  return days.includes(dayCode);
+}
+
+/**
+ * Extract only the time portion from a course (e.g., "9:00 - 10:30 AM"), ignoring day prefixes.
+ * Returns empty string if only day letters exist (preventing redundant day labels with clock icon).
+ */
+export function getCourseTimeDisplay(course: Course): string {
+  if (course.time && course.time.trim()) {
+    const trimmed = course.time.trim();
+    if (!/^[MTWFHSU\s-,]+$/i.test(trimmed)) {
+      return trimmed;
+    }
+  }
+  if (course.schedule) {
+    const timeOnly = course.schedule
+      .replace(/^(M|T|W|TH|F|S|SU|MON|TUE|WED|THU|THUR|FRI|SAT|SUN|\s|-|,)+/i, '')
+      .trim();
+    if (timeOnly && /\d/.test(timeOnly)) {
+      return timeOnly;
+    }
+  }
+  return '';
+}
+
+/**
+ * Get formatted YYYY-MM-DD string in local user timezone.
+ */
+export function getLocalDateString(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Parse student name parts for sorting and standard academic display (Lastname, Firstname).
@@ -342,6 +447,8 @@ export function getSampleCollegeData(): { courses: Course[]; students: Student[]
       section: 'BSCS 3-A',
       semester: '1st Semester 2026-2027',
       room: 'Tech Lab 402',
+      days: ['M', 'W', 'F'],
+      time: '09:00 - 10:30 AM',
       schedule: 'MWF 09:00 - 10:30 AM',
       color: '#4f46e5',
       createdAt: Date.now() - 86400000 * 14
@@ -353,7 +460,9 @@ export function getSampleCollegeData(): { courses: Course[]; students: Student[]
       section: 'BSIT 2-B',
       semester: '1st Semester 2026-2027',
       room: 'Innovation Hall 101',
-      schedule: 'TTh 01:00 - 03:00 PM',
+      days: ['T', 'TH'],
+      time: '01:00 - 03:00 PM',
+      schedule: 'TTH 01:00 - 03:00 PM',
       color: '#06b6d4',
       createdAt: Date.now() - 86400000 * 10
     }

@@ -9,9 +9,18 @@ import {
   Edit2,
   Trash2,
   CalendarCheck,
-  BookOpen
+  BookOpen,
+  Calendar,
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import { Course, Student } from '../types';
+import {
+  DAYS_OF_WEEK,
+  getTodayDayCode,
+  isCourseScheduledForDay,
+  getCourseTimeDisplay
+} from '../utils/collegeUtils';
 
 interface DashboardProps {
   courses: Course[];
@@ -31,14 +40,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onDeleteCourse
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [dayFilter, setDayFilter] = useState<'today' | 'all'>('today');
   const [activeMenuCourseId, setActiveMenuCourseId] = useState<string | null>(null);
 
-  const filteredCourses = courses.filter(
-    c =>
-      c.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.section.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const todayCode = getTodayDayCode();
+  const todayObj = DAYS_OF_WEEK.find(d => d.code === todayCode) || DAYS_OF_WEEK[4]; // Default to Friday if none
+
+  // Calculate today's scheduled classes count
+  const todayCoursesCount = courses.filter(c => isCourseScheduledForDay(c, todayCode)).length;
+
+  // Filter courses based on search and active day filter
+  const filteredCourses = courses.filter(course => {
+    // 1. Search term matching
+    const matchesSearch =
+      course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      course.section.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (course.room && course.room.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (course.schedule && course.schedule.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    if (!matchesSearch) return false;
+
+    // 2. Day filter matching (only show if scheduled for today when 'today' is active)
+    if (dayFilter === 'today') {
+      return isCourseScheduledForDay(course, todayCode);
+    }
+    return true;
+  });
 
   const getStudentCount = (courseId: string) => {
     return students.filter(s => s.courseId === courseId).length;
@@ -46,25 +74,74 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div>
-      {/* Top Search & Filter Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
+      {/* Top Search & Create Toolbar */}
+      <div className="dashboard-top-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
           <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             type="text"
             className="form-input"
             style={{ paddingLeft: '2.2rem' }}
-            placeholder="Search your subjects or sections..."
+            placeholder="Search your subjects, code, section, room..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <button className="btn btn-primary" onClick={onOpenCreateCourse}>
+        <button className="btn btn-primary hide-on-mobile" onClick={onOpenCreateCourse}>
           <Plus size={16} />
-          <span>Add Subject</span>
+          <span>Add Class</span>
         </button>
       </div>
+
+      {/* Dynamic Day of Week Filter Bar: Today vs All */}
+      {courses.length > 0 && (
+        <div className="dashboard-day-filter-bar">
+          {/* Today Button */}
+          <button
+            type="button"
+            className={`day-filter-tab today-tab ${dayFilter === 'today' ? 'active' : ''}`}
+            onClick={() => setDayFilter('today')}
+            title={`Show classes scheduled for Today (${todayObj.full})`}
+          >
+            <Sparkles size={14} />
+            <span>Today ({todayObj.label})</span>
+            <span className="day-tab-count">{todayCoursesCount}</span>
+          </button>
+
+          {/* All Tab Button */}
+          <button
+            type="button"
+            className={`day-filter-tab ${dayFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setDayFilter('all')}
+            title="Browse all subjects"
+          >
+            <Layers size={14} />
+            <span>All</span>
+            <span className="day-tab-count">{courses.length}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Active Filter Header Notice for Today */}
+      {courses.length > 0 && dayFilter === 'today' && (
+        <div className="dynamic-day-info-bar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Calendar size={15} />
+            <span>
+              Showing classes for <strong>Today ({todayObj.full})</strong> ({filteredCourses.length} of {courses.length} classes)
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn-ghost"
+            style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', height: 'auto', color: 'var(--primary)', fontWeight: 700 }}
+            onClick={() => setDayFilter('all')}
+          >
+            Show All Classes →
+          </button>
+        </div>
+      )}
 
       {/* Classroom Cards Grid */}
       {filteredCourses.length === 0 ? (
@@ -73,17 +150,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <BookOpen size={28} />
           </div>
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', marginBottom: '0.35rem' }}>
-            {courses.length === 0 ? 'No Subjects Created Yet' : 'No Matching Subjects'}
+            {courses.length === 0
+              ? 'No Classes Created Yet'
+              : dayFilter === 'today'
+              ? `No Classes Scheduled for Today (${todayObj.full})`
+              : 'No Matching Classes'}
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
             {courses.length === 0
-              ? 'Tap the button below to add your first college subject and start taking roll calls.'
-              : 'Try clearing your search query to see all subjects.'}
+              ? 'Tap the button below to add your first college class and start taking roll calls.'
+              : dayFilter === 'today'
+              ? 'You can switch to "All" to view all your enrolled classes.'
+              : 'Try clearing your search query to see all classes.'}
           </p>
-          <button className="btn btn-primary" onClick={onOpenCreateCourse}>
-            <Plus size={16} />
-            Create Subject
-          </button>
+          <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {courses.length > 0 && dayFilter === 'today' && (
+              <button className="btn btn-secondary" onClick={() => setDayFilter('all')}>
+                View All {courses.length} Classes
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={onOpenCreateCourse}>
+              <Plus size={16} />
+              Add Class
+            </button>
+          </div>
         </div>
       ) : (
         <div className="classroom-grid">
@@ -102,12 +192,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   className="classroom-card-banner"
                   style={{
                     backgroundColor: course.color || '#1a73e8',
-                    backgroundImage: `linear-gradient(135deg, ${course.color || '#1a73e8'} 0%, rgba(0,0,0,0.2) 100%)`
+                    backgroundImage: `linear-gradient(135deg, ${course.color || '#1a73e8'} 0%, rgba(0,0,0,0.25) 100%)`
                   }}
                 >
                   <div className="card-top-row">
-                    <div>
-                      <div className="card-course-code">{course.code}</div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="card-course-code">
+                        {course.section ? `${course.section} - ${course.code}` : course.code}
+                      </div>
                       <div className="card-course-name">{course.name}</div>
                     </div>
 
@@ -115,7 +207,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
                       <button
                         className="btn-icon"
-                        style={{ color: '#ffffff', background: 'rgba(0,0,0,0.15)', width: '30px', height: '30px' }}
+                        style={{ color: '#ffffff', background: 'rgba(0,0,0,0.18)', width: '30px', height: '30px' }}
                         onClick={() => setActiveMenuCourseId(isMenuOpen ? null : course.id)}
                         aria-label="Course options"
                       >
@@ -156,7 +248,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                               onEditCourse(course);
                             }}
                           >
-                            <Edit2 size={14} /> Edit Subject
+                            <Edit2 size={14} /> Edit Class
                           </button>
                           <button
                             style={{
@@ -175,12 +267,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                             }}
                             onClick={() => {
                               setActiveMenuCourseId(null);
-                              if (confirm(`Delete subject "${course.code} - ${course.name}"?`)) {
+                              if (confirm(`Delete class "${course.code} - ${course.name}"?`)) {
                                 onDeleteCourse(course.id);
                               }
                             }}
                           >
-                            <Trash2 size={14} /> Delete Subject
+                            <Trash2 size={14} /> Delete Class
                           </button>
                         </div>
                       )}
@@ -188,23 +280,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   </div>
 
                   <div className="card-section-name">
-                    Section: <strong>{course.section}</strong> • {course.semester}
+                    {course.semester}
                   </div>
                 </div>
 
                 {/* Card Body */}
                 <div className="classroom-card-body">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {course.schedule && (
-                      <div className="card-info-row">
-                        <Clock size={14} />
-                        <span>{course.schedule}</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const timeText = getCourseTimeDisplay(course);
+                      if (!timeText) return null;
+                      return (
+                        <div className="card-info-row">
+                          <Clock size={13} />
+                          <span>{timeText}</span>
+                        </div>
+                      );
+                    })()}
+
                     {course.room && (
                       <div className="card-info-row">
-                        <MapPin size={14} />
-                        <span>{course.room}</span>
+                        <MapPin size={13} />
+                        <span>Room: {course.room}</span>
                       </div>
                     )}
                   </div>
@@ -215,7 +312,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <span>{studentCount} Students</span>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#1a73e8', fontWeight: 600 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--primary)', fontWeight: 600 }}>
                       <CalendarCheck size={14} />
                       <span>Take Attendance</span>
                     </div>
@@ -226,6 +323,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
           })}
         </div>
       )}
+
+      {/* Floating Action Button (FAB) for Mobile - Bottom Right */}
+      <button
+        type="button"
+        className="fab-add-class"
+        onClick={onOpenCreateCourse}
+        aria-label="Add Class"
+        title="Add Class"
+      >
+        <Plus size={20} />
+        <span>Add Class</span>
+      </button>
     </div>
   );
 };

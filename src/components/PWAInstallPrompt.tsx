@@ -15,7 +15,7 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onInstall, o
         </div>
         <div>
           <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-            Install UniAttend App
+            Install Class Check App
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
             Works 100% offline in lecture halls & syncs automatically

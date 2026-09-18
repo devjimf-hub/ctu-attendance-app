@@ -9,7 +9,9 @@ import {
   Trash2,
   CheckCircle2,
   ShieldCheck,
-  Database
+  Database,
+  Smartphone,
+  Check
 } from 'lucide-react';
 import { SyncStatus } from '../types';
 import { storageService } from '../services/storageService';
@@ -19,13 +21,17 @@ interface SettingsModalProps {
   onClose: () => void;
   syncStatus: SyncStatus;
   onSyncRefresh: () => void;
+  canInstallPwa?: boolean;
+  onInstallPwa?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   syncStatus,
-  onSyncRefresh
+  onSyncRefresh,
+  canInstallPwa,
+  onInstallPwa
 }) => {
   const [syncingNow, setSyncingNow] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
@@ -52,7 +58,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `UniAttend_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `ClassCheck_Backup_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -114,7 +120,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* Cloud Sync Status Card */}
           <div
             style={{
-              padding: '1.1rem',
+              padding: '1rem',
               borderRadius: 'var(--radius-md)',
               background: 'var(--bg-surface-elevated)',
               border: '1px solid var(--border-color)',
@@ -123,12 +129,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               gap: '0.85rem'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '1rem' }}>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', minWidth: 0, flex: 1 }}>
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
+                    width: '36px',
+                    height: '36px',
                     borderRadius: '50%',
                     background: syncStatus.firebaseConnected ? 'var(--status-present-bg)' : 'var(--bg-card)',
                     color: syncStatus.firebaseConnected ? 'var(--status-present)' : 'var(--text-muted)',
@@ -138,22 +144,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     flexShrink: 0
                   }}
                 >
-                  <Cloud size={20} />
+                  <Cloud size={18} />
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                     <span>Cloud Sync</span>
                     <span
                       className={`badge ${syncStatus.firebaseConnected ? 'badge-present' : 'badge-excused'}`}
-                      style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem' }}
+                      style={{ fontSize: '0.72rem', padding: '0.12rem 0.45rem' }}
                     >
-                      {syncStatus.firebaseConnected ? 'Connected & Active' : 'Offline Local Mode'}
+                      {syncStatus.firebaseConnected ? 'Connected' : 'Offline Mode'}
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
                     {syncStatus.isOnline
-                      ? '🟢 Internet connection active'
-                      : '🟠 Working offline (data saves locally in IndexedDB)'}
+                      ? '🟢 Internet active'
+                      : '🟠 Working offline (IndexedDB)'}
                   </div>
                 </div>
               </div>
@@ -170,13 +176,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
 
             <div
+              className="form-row-2col"
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '0.5rem',
-                paddingTop: '0.75rem',
+                paddingTop: '0.65rem',
                 borderTop: '1px solid var(--border-color)',
-                fontSize: '0.8rem',
+                fontSize: '0.78rem',
                 color: 'var(--text-secondary)'
               }}
             >
@@ -216,6 +220,83 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 Firebase credentials are encrypted and managed securely via server-side environment configuration. Raw credentials and API keys are hidden from the frontend to protect system integrity.
               </p>
             </div>
+          </div>
+
+          {/* Progressive Web App (PWA) Install Section */}
+          <div
+            style={{
+              padding: '1rem',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-surface-elevated)',
+              border: '1px solid var(--border-color)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start', minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--primary-light)',
+                    color: 'var(--primary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                  }}
+                >
+                  <Smartphone size={18} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.92rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <span>Install Class Check App</span>
+                    {typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true) && (
+                      <span
+                        className="badge badge-present"
+                        style={{ fontSize: '0.72rem', padding: '0.12rem 0.45rem' }}
+                      >
+                        <Check size={11} /> Installed (App Mode)
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0', lineHeight: 1.4 }}>
+                    {typeof window !== 'undefined' && (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true)
+                      ? 'You are running Class Check as an installed application with offline caching and faster access.'
+                      : 'Install to your device home screen for instant offline attendance, full-screen view, and native app performance.'}
+                  </p>
+                </div>
+              </div>
+
+              {onInstallPwa && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={onInstallPwa}
+                  style={{ flexShrink: 0, marginTop: '2px' }}
+                >
+                  <Download size={14} />
+                  Install App
+                </button>
+              )}
+            </div>
+
+            {!canInstallPwa && (
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  color: 'var(--text-muted)',
+                  paddingTop: '0.5rem',
+                  borderTop: '1px solid var(--border-color)',
+                  lineHeight: 1.4
+                }}
+              >
+                💡 <em>Tip: To install on iOS Safari, tap <strong>Share</strong> (⎋) → <strong>Add to Home Screen</strong>. On Android Chrome, tap <strong>⋮</strong> → <strong>Install app</strong>.</em>
+              </div>
+            )}
           </div>
 
           <hr style={{ borderColor: 'var(--border-color)', margin: '0' }} />

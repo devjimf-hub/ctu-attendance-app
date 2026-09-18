@@ -182,7 +182,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         }}>
           <img
             src="/logo.webp"
-            alt="CTU UniAttend Logo"
+            alt="CTU Class Check Logo"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         </div>
@@ -194,7 +194,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           color: 'var(--text-primary)',
           marginBottom: '0.25rem'
         }}>
-          UniAttend
+          Class Check
         </h1>
         <p style={{
           fontSize: '0.85rem',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Printer, Download, ArrowLeft, Sliders, FileSpreadsheet, Calendar, Smartphone, ZoomIn } from 'lucide-react';
+import { Printer, Download, Sliders, FileSpreadsheet, Calendar, Smartphone, ZoomIn } from 'lucide-react';
 import { Course, Student, AttendanceSession, StudentAttendanceSummary, TeacherUser } from '../types';
 import { exportAttendanceToCSV, sortStudentsByLastName, parseNameParts } from '../utils/collegeUtils';
 
@@ -9,7 +9,7 @@ interface PrintableSummaryProps {
   sessions: AttendanceSession[];
   summaries: StudentAttendanceSummary[];
   teacher: TeacherUser | null;
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
@@ -17,8 +17,7 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
   students,
   sessions,
   summaries,
-  teacher,
-  onBack
+  teacher
 }) => {
   // View mode: 'totals' (Presents, A, T, E counts) or 'dates' (date-by-date daily sheet)
   const [viewMode, setViewMode] = useState<'totals' | 'dates'>('totals');
@@ -107,77 +106,86 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
   return (
     <div>
       {/* Control & Customization Toolbar (Hidden when Printed) */}
-      <div className="no-print" style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', marginBottom: '1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" onClick={onBack}>
-            <ArrowLeft size={16} />
-            Back to Roll Call
-          </button>
-
-          {/* View Mode Toggle: Summary Totals vs Daily Dates */}
-          <div style={{ display: 'flex', background: 'var(--bg-surface-elevated)', padding: '0.25rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', gap: '0.25rem' }}>
+      <div className="print-toolbar-card no-print">
+        {/* Row 1: View Mode & Mobile Scale Toggles */}
+        <div className="print-toolbar-row print-toolbar-top-row">
+          {/* View Mode Toggle: Totals Summary vs Daily Dates */}
+          <div className="print-segmented-group">
             <button
-              className={`btn btn-sm ${viewMode === 'totals' ? 'btn-primary' : 'btn-ghost'}`}
+              type="button"
+              className={`print-segmented-btn ${viewMode === 'totals' ? 'active' : ''}`}
               onClick={() => setViewMode('totals')}
-              style={{ fontSize: '0.8rem' }}
             >
-              <FileSpreadsheet size={14} />
-              Summary Totals (Presents, A, T, E)
+              <FileSpreadsheet size={15} />
+              <span>Totals<span className="hide-on-mobile"> Summary</span></span>
             </button>
             <button
-              className={`btn btn-sm ${viewMode === 'dates' ? 'btn-primary' : 'btn-ghost'}`}
+              type="button"
+              className={`print-segmented-btn ${viewMode === 'dates' ? 'active' : ''}`}
               onClick={() => setViewMode('dates')}
-              style={{ fontSize: '0.8rem' }}
             >
-              <Calendar size={14} />
-              Daily Date Matrix
+              <Calendar size={15} />
+              <span>Daily<span className="hide-on-mobile"> Dates</span></span>
             </button>
           </div>
 
           {/* Mobile Full Page Fit vs 100% Zoom Toggle */}
           {isMobile && (
-            <div style={{ display: 'flex', background: 'var(--bg-surface-elevated)', padding: '0.25rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', gap: '0.25rem' }}>
+            <div className="print-segmented-group">
               <button
-                className={`btn btn-sm ${scaleMode === 'fit' ? 'btn-primary' : 'btn-ghost'}`}
+                type="button"
+                className={`print-segmented-btn ${scaleMode === 'fit' ? 'active' : ''}`}
                 onClick={() => setScaleMode('fit')}
-                style={{ fontSize: '0.75rem' }}
                 title="Scale and fit entire document page to screen"
               >
-                <Smartphone size={13} />
-                Fit Full Page
+                <Smartphone size={14} />
+                <span>Fit Page</span>
               </button>
               <button
-                className={`btn btn-sm ${scaleMode === 'actual' ? 'btn-primary' : 'btn-ghost'}`}
+                type="button"
+                className={`print-segmented-btn ${scaleMode === 'actual' ? 'active' : ''}`}
                 onClick={() => setScaleMode('actual')}
-                style={{ fontSize: '0.75rem' }}
                 title="View at 100% scale with horizontal scroll"
               >
-                <ZoomIn size={13} />
-                100% Zoom
+                <ZoomIn size={14} />
+                <span>100% Zoom</span>
               </button>
             </div>
           )}
+        </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {/* Row 2: Actions Bar */}
+        <div className="print-toolbar-row print-toolbar-bottom-row">
+          <div className="print-toolbar-left-actions">
             <button
-              className="btn btn-secondary"
+              type="button"
+              className={`btn btn-sm ${showConfig ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setShowConfig(!showConfig)}
               title="Edit Header text & details"
             >
-              <Sliders size={16} />
-              {showConfig ? 'Hide Header Options' : 'Edit Header Text'}
+              <Sliders size={15} />
+              <span>{showConfig ? 'Hide Header' : 'Edit Header'}</span>
             </button>
 
-            <button className="btn btn-secondary" onClick={handleExportCSV}>
-              <Download size={16} />
-              Export CSV
-            </button>
-
-            <button className="btn btn-primary" onClick={handlePrint}>
-              <Printer size={16} />
-              Print Attendance Summary
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={handleExportCSV}
+              title="Download CSV spreadsheet"
+            >
+              <Download size={15} />
+              <span>Export CSV</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            className="btn btn-sm btn-primary print-submit-btn"
+            onClick={handlePrint}
+          >
+            <Printer size={15} />
+            <span>Print<span className="hide-on-mobile"> Summary</span></span>
+          </button>
         </div>
 
         {/* Collapsible Header Customization */}

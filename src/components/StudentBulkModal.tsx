@@ -157,7 +157,7 @@ Fiona Gallagher`;
               onClick={() => setActiveMode('section')}
             >
               <BookOpen size={15} />
-              Official Section Roster
+              <span><span className="hide-on-mobile">Official </span>Section</span>
             </button>
             <button
               type="button"
@@ -165,7 +165,7 @@ Fiona Gallagher`;
               onClick={() => setActiveMode('bulk')}
             >
               <FileText size={15} />
-              Paste / CSV
+              <span>Paste / CSV</span>
             </button>
             <button
               type="button"
@@ -173,7 +173,7 @@ Fiona Gallagher`;
               onClick={() => setActiveMode('single')}
             >
               <Users size={15} />
-              Single Student
+              <span>Single<span className="hide-on-mobile"> Student</span></span>
             </button>
           </div>
         </div>

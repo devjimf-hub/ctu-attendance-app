@@ -1,4 +1,5 @@
 export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+export type DayCode = 'M' | 'T' | 'W' | 'TH' | 'F' | 'S' | 'SU';
 
 export interface Course {
   id: string;
@@ -9,7 +10,10 @@ export interface Course {
   semester: string; // e.g., "1st Semester 2026-2027"
   room?: string; // e.g., "Lab 402", "Hall B"
   schedule?: string; // e.g., "MWF 9:00 - 10:30 AM"
+  days?: DayCode[]; // e.g., ['M', 'W', 'F'] or ['T', 'TH']
+  time?: string; // e.g. "9:00 - 10:30 AM"
   color: string; // Accent color hex
+  order?: number; // Custom display sequence order for drag-and-drop
   createdAt: number;
 }
 
