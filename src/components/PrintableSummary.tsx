@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Printer, Download, Sliders, FileSpreadsheet, Calendar, Smartphone, ZoomIn } from 'lucide-react';
 import { Course, Student, AttendanceSession, StudentAttendanceSummary, TeacherUser } from '../types';
 import { exportAttendanceToCSV, sortStudentsByLastName, parseNameParts } from '../utils/collegeUtils';
+import { storageService } from '../services/storageService';
 
 interface PrintableSummaryProps {
   course: Course;
@@ -30,6 +31,11 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
   const viewportRef = useRef<HTMLDivElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
+  // Dynamic program / college resolution
+  const matchedProg = teacher?.programId ? storageService.getProgramById(teacher.programId) : undefined;
+  const initialCollege = (teacher?.department || matchedProg?.department || 'COLLEGE OF TECHNOLOGY').toUpperCase();
+  const initialProgram = (matchedProg ? `${matchedProg.name} (${matchedProg.code})` : teacher?.department || 'BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)').toUpperCase();
+
   // Header State customizable
   const [republicHeader, setRepublicHeader] = useState('Republic of the Philippines');
   const [universityName, setUniversityName] = useState('CEBU TECHNOLOGICAL UNIVERSITY');
@@ -37,8 +43,8 @@ export const PrintableSummary: React.FC<PrintableSummaryProps> = ({
   const [addressLine, setAddressLine] = useState('Brgy 8, Poblacion, Tuburan, Cebu, Philippines');
   const [contactInfo, setContactInfo] = useState('Website: http://www.ctu.edu.ph | E-mail: tuburan.campus@ctu.edu.ph | Phone: +6332 463 9313 loc. 1523');
   
-  const [collegeHeader, setCollegeHeader] = useState('COLLEGE OF TECHNOLOGY');
-  const [programHeader, setProgramHeader] = useState('BACHELOR OF SCIENCE IN INFORMATION TECHNOLOGY (BSIT)');
+  const [collegeHeader, setCollegeHeader] = useState(initialCollege);
+  const [programHeader, setProgramHeader] = useState(initialProgram);
   const [documentTitle, setDocumentTitle] = useState('DAILY CLASS ATTENDANCE MONITORING');
   const [academicYear, setAcademicYear] = useState(course.semester || 'Second Semester, A.Y. 2025-2026');
   const [instructorName, setInstructorName] = useState(teacher?.name || 'Faculty Instructor');

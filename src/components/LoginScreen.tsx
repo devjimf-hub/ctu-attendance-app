@@ -45,6 +45,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [selectedProgramId, setSelectedProgramId] = useState<string>(programs[0]?.id || 'prog_bsit');
+  const [customProgram, setCustomProgram] = useState('');
 
   // UI status
   const [showPassword, setShowPassword] = useState(false);
@@ -108,6 +109,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         setErrorMessage('Please enter your full name / faculty title.');
         return;
       }
+      if (selectedProgramId === 'other' && !customProgram.trim()) {
+        setErrorMessage('Please specify your custom department or program.');
+        return;
+      }
       if (password.length < 6) {
         setErrorMessage('Password must be at least 6 characters long.');
         return;
@@ -122,14 +127,41 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
     try {
       if (authMode === 'register') {
-        const selectedProg = programs.find(p => p.id === selectedProgramId);
-        const department = selectedProg?.department || 'College of Technology';
+        let department = 'College of Technology';
+        let programId = selectedProgramId;
+
+        if (selectedProgramId === 'other') {
+          const customName = customProgram.trim();
+          department = customName;
+          const autoCode = customName.split(/[\s-]+/)[0]?.toUpperCase() || 'CUSTOM';
+          const autoProgId = `prog_${autoCode.toLowerCase()}_${Date.now().toString(36)}`;
+          programId = autoProgId;
+
+          const safeTeacherId = `teacher_${cleanEmail.replace(/[^a-z0-9]/g, '_')}`;
+
+          // Save custom program marked as private to this specific teacher
+          const customProgObj: CurriculumProgram = {
+            id: autoProgId,
+            code: autoCode,
+            name: customName,
+            department: customName,
+            createdByTeacherId: safeTeacherId,
+            createdByTeacherName: name.trim(),
+            isPublic: false,
+            createdAt: Date.now()
+          };
+          storageService.saveProgram(customProgObj);
+        } else {
+          const selectedProg = programs.find(p => p.id === selectedProgramId);
+          department = selectedProg?.department || selectedProg?.name || 'College of Technology';
+        }
+
         const user = await authService.registerWithFirebase(
           name.trim(),
           cleanEmail,
           password,
           department,
-          selectedProgramId
+          programId
         );
         onLoginSuccess(user);
       } else {
@@ -473,25 +505,47 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
           {/* Register-only: Program / Department Selection */}
           {authMode === 'register' && (
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <BookOpen size={13} color="var(--text-secondary)" />
-                Department / Program *
-              </label>
-              <select
-                className="form-select"
-                value={selectedProgramId}
-                onChange={e => setSelectedProgramId(e.target.value)}
-                required
-                disabled={isLoading}
-              >
-                {programs.map(prog => (
-                  <option key={prog.id} value={prog.id}>
-                    {prog.code} - {prog.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <>
+              <div className="form-group">
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <BookOpen size={13} color="var(--text-secondary)" />
+                  Department / Program *
+                </label>
+                <select
+                  className="form-select"
+                  value={selectedProgramId}
+                  onChange={e => setSelectedProgramId(e.target.value)}
+                  required
+                  disabled={isLoading}
+                >
+                  {programs.map(prog => (
+                    <option key={prog.id} value={prog.id}>
+                      {prog.code} - {prog.name}
+                    </option>
+                  ))}
+                  <option value="other">Other (Specify Custom Department / Program)</option>
+                </select>
+              </div>
+
+              {selectedProgramId === 'other' && (
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <BookOpen size={13} color="var(--text-secondary)" />
+                    Custom Department / Program Name *
+                  </label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. BS Hospitality Management / College of Arts & Sciences"
+                    value={customProgram}
+                    onChange={e => setCustomProgram(e.target.value)}
+                    required
+                    disabled={isLoading}
+                    autoFocus
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {/* Email Address (Hidden input visual when in Quick mode, editable in signin/register) */}

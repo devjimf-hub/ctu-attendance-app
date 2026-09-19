@@ -7,6 +7,7 @@ import {
   Edit2,
   Trash2,
   Lock,
+  Globe,
   LogOut,
   ShieldCheck,
   Search,
@@ -52,7 +53,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
 
   // Core Curriculum Data
   const [activeTab, setActiveTab] = useState<'programs' | 'subjects' | 'sections'>('programs');
-  const [programs, setPrograms] = useState<CurriculumProgram[]>(() => storageService.getPrograms());
+  const [programs, setPrograms] = useState<CurriculumProgram[]>(() => storageService.getAllPrograms());
   const [subjects, setSubjects] = useState<CurriculumSubject[]>(() => storageService.getSubjects());
   const [sections, setSections] = useState<CurriculumSection[]>(() => storageService.getSections());
 
@@ -66,6 +67,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
   const [progCode, setProgCode] = useState('');
   const [progName, setProgName] = useState('');
   const [progDept, setProgDept] = useState('');
+  const [progIsPublic, setProgIsPublic] = useState(true);
 
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [editingSubject, setEditingSubject] = useState<CurriculumSubject | null>(null);
@@ -108,7 +110,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
   }, []);
 
   const refreshData = () => {
-    setPrograms(storageService.getPrograms());
+    setPrograms(storageService.getAllPrograms());
     setSubjects(storageService.getSubjects());
     setSections(storageService.getSections());
   };
@@ -179,11 +181,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
       setProgCode(prog.code);
       setProgName(prog.name);
       setProgDept(prog.department || '');
+      setProgIsPublic(prog.isPublic ?? true);
     } else {
       setEditingProgram(null);
       setProgCode('');
       setProgName('');
       setProgDept('College of Computer Studies');
+      setProgIsPublic(true);
     }
     setIsProgramModalOpen(true);
   };
@@ -197,12 +201,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
       code: progCode.trim().toUpperCase(),
       name: progName.trim(),
       department: progDept.trim() || undefined,
+      createdByTeacherId: editingProgram?.createdByTeacherId,
+      createdByTeacherName: editingProgram?.createdByTeacherName,
+      isPublic: progIsPublic,
       createdAt: editingProgram ? editingProgram.createdAt : Date.now()
     };
 
     storageService.saveProgram(program);
     refreshData();
     setIsProgramModalOpen(false);
+  };
+
+  const handleToggleProgramPublic = (progId: string, makePublic: boolean) => {
+    storageService.toggleProgramPublic(progId, makePublic);
+    refreshData();
   };
 
   const handleDeleteProgram = (id: string, name: string) => {
@@ -653,27 +665,48 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
                   const progSubjs = subjects.filter(s => s.programId === prog.id);
                   const progSecs = sections.filter(sec => sec.programId === prog.id);
                   const studentCount = progSecs.reduce((acc, s) => acc + (s.students?.length || 0), 0);
+                  const isPrivate = !prog.isPublic && !!prog.createdByTeacherId;
 
                   return (
                     <div
                       key={prog.id}
                       style={{
                         background: 'var(--bg-surface)',
-                        border: '1px solid var(--border-color)',
+                        border: isPrivate ? '1px solid var(--status-late-border, #fef08a)' : '1px solid var(--border-color)',
                         borderRadius: 'var(--radius-md)',
                         padding: '1.25rem',
                         boxShadow: 'var(--shadow-sm)',
                         display: 'flex',
                         flexDirection: 'column',
                         justifyContent: 'space-between',
-                        gap: '1rem'
+                        gap: '1rem',
+                        position: 'relative'
                       }}
                     >
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                          <span className="badge badge-present" style={{ fontSize: '0.85rem', fontWeight: 800, padding: '0.2rem 0.6rem' }}>
-                            {prog.code}
-                          </span>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span className="badge badge-present" style={{ fontSize: '0.85rem', fontWeight: 800, padding: '0.2rem 0.6rem' }}>
+                              {prog.code}
+                            </span>
+                            {isPrivate ? (
+                              <span
+                                className="badge badge-late"
+                                style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '0.15rem 0.5rem' }}
+                                title={`Custom program private to: ${prog.createdByTeacherName || prog.createdByTeacherId}`}
+                              >
+                                <Lock size={10} /> Private ({prog.createdByTeacherName || 'Teacher'})
+                              </span>
+                            ) : (
+                              <span
+                                className="badge badge-excused"
+                                style={{ fontSize: '0.72rem', display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '0.15rem 0.5rem' }}
+                                title="Visible to all faculty members"
+                              >
+                                <Globe size={10} /> Public
+                              </span>
+                            )}
+                          </div>
                           <div style={{ display: 'flex', gap: '0.25rem' }}>
                             <button
                               className="btn-icon"
@@ -697,9 +730,54 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
                         <h3 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0 0 0.25rem' }}>
                           {prog.name}
                         </h3>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 0.5rem' }}>
                           {prog.department || 'General College Department'}
                         </p>
+
+                        {/* Admin Action to Make Public / Private */}
+                        {isPrivate ? (
+                          <div style={{ marginTop: '0.4rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProgramPublic(prog.id, true)}
+                              className="btn btn-secondary btn-xs"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.75rem',
+                                padding: '4px 10px',
+                                color: '#16a34a',
+                                borderColor: '#86efac',
+                                background: '#f0fdf4',
+                                fontWeight: 600
+                              }}
+                              title="Publish this degree program so all faculty members can select and use it"
+                            >
+                              <Globe size={12} /> Make Public
+                            </button>
+                          </div>
+                        ) : prog.createdByTeacherId ? (
+                          <div style={{ marginTop: '0.4rem' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleProgramPublic(prog.id, false)}
+                              className="btn btn-secondary btn-xs"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                fontSize: '0.75rem',
+                                padding: '4px 10px',
+                                color: 'var(--text-muted)',
+                                fontWeight: 500
+                              }}
+                              title="Make this program private to its creator only"
+                            >
+                              <Lock size={12} /> Make Private
+                            </button>
+                          </div>
+                        ) : null}
                       </div>
 
                       <div
@@ -1021,6 +1099,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ onBackToTeacherPortal 
                     value={progDept}
                     onChange={e => setProgDept(e.target.value)}
                   />
+                </div>
+
+                <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.88rem' }}>
+                    <input
+                      type="checkbox"
+                      checked={progIsPublic}
+                      onChange={e => setProgIsPublic(e.target.checked)}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span>Make public and accessible to all faculty members</span>
+                  </label>
                 </div>
               </div>
 

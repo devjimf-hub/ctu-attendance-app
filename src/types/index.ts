@@ -63,6 +63,9 @@ export interface CurriculumProgram {
   code: string; // e.g., "BSIT", "BSCS"
   name: string; // e.g., "Bachelor of Science in Information Technology"
   department?: string; // e.g., "College of Computer Studies"
+  createdByTeacherId?: string; // ID of the teacher who created this program
+  createdByTeacherName?: string; // Teacher name for admin reference
+  isPublic?: boolean; // If true or undefined (system defaults), visible to everyone; if false, visible only to creator until approved by admin
   createdAt: number;
 }
 

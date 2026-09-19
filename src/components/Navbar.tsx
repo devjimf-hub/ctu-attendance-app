@@ -124,9 +124,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{teacher.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-                  {teacher.email || teacher.department}
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
+                  {teacher.email}
                 </div>
+                {teacher.department && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, marginBottom: '0.75rem' }}>
+                    {teacher.department}
+                  </div>
+                )}
 
                 <button
                   className="btn btn-sm btn-secondary"

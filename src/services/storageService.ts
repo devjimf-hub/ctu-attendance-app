@@ -264,18 +264,34 @@ class StorageService {
     this.initializeCurriculumData();
   }
 
-  // --- CURRICULUM ADMIN CRUD (Global Shared) ---
+  // --- CURRICULUM ADMIN CRUD (Global Shared & Teacher Custom) ---
 
-  public getPrograms(): CurriculumProgram[] {
+  public getPrograms(teacherId?: string, includeAllPrivate: boolean = false): CurriculumProgram[] {
+    const all = this.getLocalData<CurriculumProgram>(STORAGE_KEYS.PROGRAMS);
+    if (includeAllPrivate) {
+      return all;
+    }
+    const currentId = teacherId || this.currentTeacherId;
+    return all.filter(p => {
+      // Default system programs or programs approved as public by admin
+      if (!p.createdByTeacherId || p.isPublic) {
+        return true;
+      }
+      // Private programs are only accessible to the teacher who added them
+      return currentId && p.createdByTeacherId === currentId;
+    });
+  }
+
+  public getAllPrograms(): CurriculumProgram[] {
     return this.getLocalData<CurriculumProgram>(STORAGE_KEYS.PROGRAMS);
   }
 
   public getProgramById(programId: string): CurriculumProgram | undefined {
-    return this.getPrograms().find(p => p.id === programId);
+    return this.getAllPrograms().find(p => p.id === programId);
   }
 
   public saveProgram(program: CurriculumProgram): void {
-    const programs = this.getPrograms();
+    const programs = this.getAllPrograms();
     const index = programs.findIndex(p => p.id === program.id);
     if (index >= 0) {
       programs[index] = program;
@@ -287,8 +303,17 @@ class StorageService {
     this.scheduleDebouncedSync();
   }
 
+  public toggleProgramPublic(programId: string, isPublic: boolean): void {
+    const programs = this.getAllPrograms();
+    const target = programs.find(p => p.id === programId);
+    if (target) {
+      target.isPublic = isPublic;
+      this.saveProgram(target);
+    }
+  }
+
   public deleteProgram(programId: string): void {
-    const programs = this.getPrograms().filter(p => p.id !== programId);
+    const programs = this.getAllPrograms().filter(p => p.id !== programId);
     this.setLocalData(STORAGE_KEYS.PROGRAMS, programs);
 
     // Cascade delete subjects and sections for this program
@@ -600,10 +625,11 @@ class StorageService {
         const docRef = doc(db, colName, item.data.id);
 
         if (item.action === 'upsert') {
-          const dataToSave = {
-            ...item.data,
-            teacherId: item.data.teacherId || item.teacherId || (item.type === 'course' || item.type === 'student' || item.type === 'session' ? teacherId || 'default' : undefined)
-          };
+          const dataToSave: any = { ...item.data };
+          const resolvedTeacherId = item.data.teacherId || item.teacherId || (item.type === 'course' || item.type === 'student' || item.type === 'session' ? teacherId || 'default' : undefined);
+          if (resolvedTeacherId !== undefined) {
+            dataToSave.teacherId = resolvedTeacherId;
+          }
           batch.set(docRef, dataToSave, { merge: true });
         } else if (item.action === 'delete') {
           batch.delete(docRef);
@@ -700,23 +726,38 @@ class StorageService {
         hasNewData = true;
       }
 
-      // Merge curriculum catalogs
+      // Merge curriculum catalogs non-destructively
       if (progSnap && !progSnap.empty) {
-        const remoteProgs: CurriculumProgram[] = [];
-        progSnap.forEach(d => remoteProgs.push(d.data() as CurriculumProgram));
-        this.setLocalData(STORAGE_KEYS.PROGRAMS, remoteProgs);
+        const localProgs = this.getAllPrograms();
+        const progMap = new Map<string, CurriculumProgram>();
+        localProgs.forEach(p => progMap.set(p.id, p));
+        progSnap.forEach(d => {
+          const remoteProg = d.data() as CurriculumProgram;
+          progMap.set(remoteProg.id, remoteProg);
+        });
+        this.setLocalData(STORAGE_KEYS.PROGRAMS, Array.from(progMap.values()));
         hasNewData = true;
       }
       if (subjSnap && !subjSnap.empty) {
-        const remoteSubjs: CurriculumSubject[] = [];
-        subjSnap.forEach(d => remoteSubjs.push(d.data() as CurriculumSubject));
-        this.setLocalData(STORAGE_KEYS.SUBJECTS, remoteSubjs);
+        const localSubjs = this.getLocalData<CurriculumSubject>(STORAGE_KEYS.SUBJECTS);
+        const subjMap = new Map<string, CurriculumSubject>();
+        localSubjs.forEach(s => subjMap.set(s.id, s));
+        subjSnap.forEach(d => {
+          const remoteSubj = d.data() as CurriculumSubject;
+          subjMap.set(remoteSubj.id, remoteSubj);
+        });
+        this.setLocalData(STORAGE_KEYS.SUBJECTS, Array.from(subjMap.values()));
         hasNewData = true;
       }
       if (secSnap && !secSnap.empty) {
-        const remoteSecs: CurriculumSection[] = [];
-        secSnap.forEach(d => remoteSecs.push(d.data() as CurriculumSection));
-        this.setLocalData(STORAGE_KEYS.SECTIONS, remoteSecs);
+        const localSecs = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS);
+        const secMap = new Map<string, CurriculumSection>();
+        localSecs.forEach(s => secMap.set(s.id, s));
+        secSnap.forEach(d => {
+          const remoteSec = d.data() as CurriculumSection;
+          secMap.set(remoteSec.id, remoteSec);
+        });
+        this.setLocalData(STORAGE_KEYS.SECTIONS, Array.from(secMap.values()));
         hasNewData = true;
       }
 

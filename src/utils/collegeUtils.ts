@@ -568,6 +568,7 @@ export function getSampleCurriculumData(): {
       code: 'BSIT',
       name: 'Bachelor of Science in Information Technology',
       department: 'College of Computer Studies',
+      isPublic: true,
       createdAt: Date.now() - 86400000 * 30
     },
     {
@@ -575,6 +576,7 @@ export function getSampleCurriculumData(): {
       code: 'BSCS',
       name: 'Bachelor of Science in Computer Science',
       department: 'College of Computer Studies',
+      isPublic: true,
       createdAt: Date.now() - 86400000 * 30
     },
     {
@@ -582,6 +584,7 @@ export function getSampleCurriculumData(): {
       code: 'BSIS',
       name: 'Bachelor of Science in Information Systems',
       department: 'College of Computer Studies',
+      isPublic: true,
       createdAt: Date.now() - 86400000 * 30
     }
   ];
