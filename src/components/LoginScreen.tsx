@@ -153,7 +153,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
           storageService.saveProgram(customProgObj);
         } else {
           const selectedProg = programs.find(p => p.id === selectedProgramId);
-          department = selectedProg?.department || selectedProg?.name || 'College of Technology';
+          department = selectedProg ? selectedProg.code : 'BSIT';
         }
 
         const user = await authService.registerWithFirebase(

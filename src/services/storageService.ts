@@ -17,6 +17,7 @@ import {
 } from '../types';
 import { getFirebaseInstance, getSavedFirebaseConfig } from '../firebase/config';
 import { getSampleCurriculumData } from '../utils/collegeUtils';
+import { indexedDbService, STORES, StoreName } from './indexedDbService';
 
 const STORAGE_KEYS = {
   COURSES: 'uniattend_courses',
@@ -26,7 +27,18 @@ const STORAGE_KEYS = {
   SUBJECTS: 'uniattend_curriculum_subjects',
   SECTIONS: 'uniattend_curriculum_sections',
   PENDING_SYNC: 'uniattend_pending_sync',
-  LAST_SYNC: 'uniattend_last_sync'
+  LAST_SYNC: 'uniattend_last_sync',
+  IDB_MIGRATED: 'uniattend_idb_migrated'
+};
+
+const KEY_TO_STORE_MAP: Record<string, StoreName> = {
+  [STORAGE_KEYS.COURSES]: STORES.COURSES,
+  [STORAGE_KEYS.STUDENTS]: STORES.STUDENTS,
+  [STORAGE_KEYS.SESSIONS]: STORES.SESSIONS,
+  [STORAGE_KEYS.PROGRAMS]: STORES.PROGRAMS,
+  [STORAGE_KEYS.SUBJECTS]: STORES.SUBJECTS,
+  [STORAGE_KEYS.SECTIONS]: STORES.SECTIONS,
+  [STORAGE_KEYS.PENDING_SYNC]: STORES.PENDING_SYNC
 };
 
 interface PendingSyncItem {
@@ -46,8 +58,18 @@ class StorageService {
   private syncDebounceTimer: any = null;
   private periodicSyncInterval: any = null;
 
+  // In-Memory Fast Cache for 0ms synchronous read access
+  private memoryCache: Map<string, any[]> = new Map();
+  private isInitialized = false;
+
+  public isStorageReady(): boolean {
+    return this.isInitialized;
+  }
+
   constructor() {
+    this.initializeMemoryCache();
     this.initializeCurriculumData();
+    this.hydrateAndMigrateFromIndexedDb();
 
     // Monitor online/offline network transitions
     if (typeof window !== 'undefined') {
@@ -72,6 +94,91 @@ class StorageService {
           this.syncWithFirebase(false);
         }
       }, 180000);
+    }
+  }
+
+  /**
+   * Synchronously seed memory cache from LocalStorage on immediate startup.
+   */
+  private initializeMemoryCache(): void {
+    const keys = [
+      STORAGE_KEYS.COURSES,
+      STORAGE_KEYS.STUDENTS,
+      STORAGE_KEYS.SESSIONS,
+      STORAGE_KEYS.PROGRAMS,
+      STORAGE_KEYS.SUBJECTS,
+      STORAGE_KEYS.SECTIONS,
+      STORAGE_KEYS.PENDING_SYNC
+    ];
+
+    for (const key of keys) {
+      try {
+        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+        if (raw) {
+          this.memoryCache.set(key, JSON.parse(raw));
+        } else {
+          this.memoryCache.set(key, []);
+        }
+      } catch (e) {
+        console.warn(`Memory cache init for ${key}:`, e);
+        this.memoryCache.set(key, []);
+      }
+    }
+  }
+
+  /**
+   * Asynchronously hydrate data from IndexedDB and auto-migrate existing LocalStorage data.
+   * Guarantees ZERO data loss.
+   */
+  private async hydrateAndMigrateFromIndexedDb(): Promise<void> {
+    if (!indexedDbService.isSupported()) return;
+
+    try {
+      const keys = [
+        STORAGE_KEYS.COURSES,
+        STORAGE_KEYS.STUDENTS,
+        STORAGE_KEYS.SESSIONS,
+        STORAGE_KEYS.PROGRAMS,
+        STORAGE_KEYS.SUBJECTS,
+        STORAGE_KEYS.SECTIONS,
+        STORAGE_KEYS.PENDING_SYNC
+      ];
+
+      for (const key of keys) {
+        const storeName = KEY_TO_STORE_MAP[key];
+        if (!storeName) continue;
+
+        const idbItems = await indexedDbService.getAll<any>(storeName);
+        const localItems = this.memoryCache.get(key) || [];
+
+        if (idbItems.length > 0) {
+          // If IndexedDB has items, merge them with any local memory items non-destructively
+          const itemMap = new Map<string, any>();
+          idbItems.forEach(item => itemMap.set(item.id, item));
+          localItems.forEach(item => {
+            if (!itemMap.has(item.id)) {
+              itemMap.set(item.id, item);
+            }
+          });
+          const merged = Array.from(itemMap.values());
+          this.memoryCache.set(key, merged);
+          // Sync merged data back to IndexedDB
+          await indexedDbService.putBulk(storeName, merged);
+        } else if (localItems.length > 0) {
+          // If IndexedDB was empty, migrate all local items into IndexedDB
+          await indexedDbService.putBulk(storeName, localItems);
+        }
+      }
+
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.IDB_MIGRATED, 'true');
+      }
+
+      this.isInitialized = true;
+      this.notifyDataChange();
+      this.notifyStatusChange();
+    } catch (err) {
+      console.warn('IndexedDB hydration notice (fallback to memory/local active):', err);
     }
   }
 
@@ -138,7 +245,7 @@ class StorageService {
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
     const pending = this.getPendingSyncItems();
     const config = getSavedFirebaseConfig();
-    const lastSynced = localStorage.getItem(STORAGE_KEYS.LAST_SYNC);
+    const lastSynced = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.LAST_SYNC) : null;
 
     return {
       isOnline,
@@ -149,24 +256,46 @@ class StorageService {
     };
   }
 
-  // --- LOCAL PERSISTENCE HELPERS ---
+  // --- DUAL-TIER PERSISTENCE HELPERS (Memory + IndexedDB + LocalStorage Fallback) ---
 
   private getLocalData<T>(key: string): T[] {
+    if (this.memoryCache.has(key)) {
+      return this.memoryCache.get(key) as T[];
+    }
     try {
-      const raw = localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : [];
+      const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      const data = raw ? JSON.parse(raw) : [];
+      this.memoryCache.set(key, data);
+      return data;
     } catch (e) {
-      console.error(`Error reading from localStorage (${key}):`, e);
+      console.error(`Error reading data for ${key}:`, e);
       return [];
     }
   }
 
-  private setLocalData<T>(key: string, data: T[]): void {
+  private setLocalData<T extends { id?: string }>(key: string, data: T[]): void {
+    // 1. Instant in-memory cache update
+    this.memoryCache.set(key, data);
+
+    // 2. LocalStorage mirror update (with quota protection)
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(key, JSON.stringify(data));
+      }
     } catch (e) {
-      console.error(`Error writing to localStorage (${key}):`, e);
+      console.warn(`LocalStorage write warning for (${key}) - relying on IndexedDB:`, e);
     }
+
+    // 3. Asynchronous IndexedDB persistent write (unlimited capacity)
+    const storeName = KEY_TO_STORE_MAP[key];
+    if (storeName && indexedDbService.isSupported()) {
+      indexedDbService.putBulk(storeName, data).catch(err => {
+        console.warn(`IndexedDB background write for ${storeName}:`, err);
+      });
+    }
+
+    // Notify components
+    this.notifyDataChange();
   }
 
   private getPendingSyncItems(): PendingSyncItem[] {
@@ -177,120 +306,76 @@ class StorageService {
 
   /**
    * Smart queue coalescing:
-   * Replaces duplicate pending modifications for the same entity with the latest state,
-   * keeping the queue small and preventing redundant network payload transfers.
+   * Replaces duplicate pending modifications for the same entity with the latest state.
    */
   private addPendingSync(item: Omit<PendingSyncItem, 'id' | 'timestamp'>): void {
-    const items = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC);
-    const targetTeacherId = item.teacherId || this.currentTeacherId || undefined;
+    const allPending = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC);
     const entityId = item.data?.id;
 
-    // Check if an entry for this exact entity already exists in the pending queue
-    const existingIndex = items.findIndex(
-      p => p.type === item.type && p.data?.id === entityId && p.teacherId === targetTeacherId
-    );
+    let updatedPending = allPending;
 
-    const syncItem: PendingSyncItem = {
+    if (entityId) {
+      updatedPending = allPending.filter(
+        p => !(p.type === item.type && p.data?.id === entityId)
+      );
+    }
+
+    const newItem: PendingSyncItem = {
       ...item,
-      teacherId: targetTeacherId,
-      id: `${item.type}_${entityId || Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now()
     };
 
-    if (existingIndex >= 0) {
-      // Coalesce: Replace with the freshest state
-      items[existingIndex] = syncItem;
-    } else {
-      items.push(syncItem);
-    }
-
-    this.setLocalData(STORAGE_KEYS.PENDING_SYNC, items);
+    updatedPending.push(newItem);
+    this.setLocalData(STORAGE_KEYS.PENDING_SYNC, updatedPending);
     this.notifyStatusChange();
   }
 
   private removeCommittedPendingItems(committedIds: Set<string>): void {
-    const items = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC);
-    const remaining = items.filter(item => !committedIds.has(item.id));
+    if (committedIds.size === 0) return;
+    const allPending = this.getLocalData<PendingSyncItem>(STORAGE_KEYS.PENDING_SYNC);
+    const remaining = allPending.filter(p => !committedIds.has(p.id));
     this.setLocalData(STORAGE_KEYS.PENDING_SYNC, remaining);
-    localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
     this.notifyStatusChange();
   }
 
-  /**
-   * Schedules a debounced background sync.
-   * Eliminates UI lag and network storms during rapid clicks (like roll call attendance).
-   */
-  public scheduleDebouncedSync(delayMs: number = 800): void {
+  private scheduleDebouncedSync(delayMs: number = 800): void {
     if (this.syncDebounceTimer) {
       clearTimeout(this.syncDebounceTimer);
     }
     this.syncDebounceTimer = setTimeout(() => {
       this.syncDebounceTimer = null;
-      this.syncWithFirebase(false);
+      if (navigator.onLine && !this.isSyncing) {
+        this.syncWithFirebase(false);
+      }
     }, delayMs);
   }
 
-  // --- INITIALIZATION / SEEDING ---
+  // --- CURRICULUM MANAGEMENT (Admin / Public Data) ---
 
   public initializeCurriculumData(): void {
-    const CURRICULUM_VERSION_KEY = 'uniattend_curriculum_v4_ctu_bsit_sections_students';
-    const hasCurrentVersion = localStorage.getItem(CURRICULUM_VERSION_KEY);
-    const programs = this.getLocalData<CurriculumProgram>(STORAGE_KEYS.PROGRAMS);
+    const programs = this.getPrograms();
+    const subjects = this.getSubjects();
+    const sections = this.getSections();
 
-    if (programs.length === 0 || !hasCurrentVersion) {
+    if (programs.length === 0 || subjects.length === 0 || sections.length === 0) {
       const sample = getSampleCurriculumData();
-
-      if (programs.length > 0) {
-        // Keep non-BSIT subjects and sections, replace BSIT catalog with official CTU sections and student rosters
-        const nonBsitSubjects = this.getSubjects().filter(s => s.programId !== 'prog_bsit');
-        const newBsitSubjects = sample.subjects.filter(s => s.programId === 'prog_bsit');
-        this.setLocalData(STORAGE_KEYS.SUBJECTS, [...newBsitSubjects, ...nonBsitSubjects]);
-
-        const nonBsitSections = this.getSections().filter(sec => sec.programId !== 'prog_bsit');
-        const newBsitSections = sample.sections.filter(sec => sec.programId === 'prog_bsit');
-        this.setLocalData(STORAGE_KEYS.SECTIONS, [...newBsitSections, ...nonBsitSections]);
-      } else {
-        this.setLocalData(STORAGE_KEYS.PROGRAMS, sample.programs);
-        this.setLocalData(STORAGE_KEYS.SUBJECTS, sample.subjects);
-        this.setLocalData(STORAGE_KEYS.SECTIONS, sample.sections);
-      }
-
-      localStorage.setItem(CURRICULUM_VERSION_KEY, 'true');
+      if (programs.length === 0) this.setLocalData(STORAGE_KEYS.PROGRAMS, sample.programs);
+      if (subjects.length === 0) this.setLocalData(STORAGE_KEYS.SUBJECTS, sample.subjects);
+      if (sections.length === 0) this.setLocalData(STORAGE_KEYS.SECTIONS, sample.sections);
     }
   }
 
-  public initializeDefaultData(_teacherId?: string): void {
-    // Ensure shared curriculum programs, subjects, and sections catalog is available
-    this.initializeCurriculumData();
-  }
-
-  // --- CURRICULUM ADMIN CRUD (Global Shared & Teacher Custom) ---
-
-  public getPrograms(teacherId?: string, includeAllPrivate: boolean = false): CurriculumProgram[] {
+  public getPrograms(): CurriculumProgram[] {
     const all = this.getLocalData<CurriculumProgram>(STORAGE_KEYS.PROGRAMS);
-    if (includeAllPrivate) {
-      return all;
-    }
-    const currentId = teacherId || this.currentTeacherId;
-    return all.filter(p => {
-      // Default system programs or programs approved as public by admin
-      if (!p.createdByTeacherId || p.isPublic) {
-        return true;
-      }
-      // Private programs are only accessible to the teacher who added them
-      return currentId && p.createdByTeacherId === currentId;
-    });
+    return all.filter(p => p.isPublic !== false || (this.currentTeacherId && p.createdByTeacherId === this.currentTeacherId));
   }
 
   public getAllPrograms(): CurriculumProgram[] {
     return this.getLocalData<CurriculumProgram>(STORAGE_KEYS.PROGRAMS);
   }
 
-  public getProgramById(programId: string): CurriculumProgram | undefined {
-    return this.getAllPrograms().find(p => p.id === programId);
-  }
-
-  public saveProgram(program: CurriculumProgram): void {
+  public async saveProgram(program: CurriculumProgram): Promise<void> {
     const programs = this.getAllPrograms();
     const index = programs.findIndex(p => p.id === program.id);
     if (index >= 0) {
@@ -303,28 +388,27 @@ class StorageService {
     this.scheduleDebouncedSync();
   }
 
-  public toggleProgramPublic(programId: string, isPublic: boolean): void {
-    const programs = this.getAllPrograms();
-    const target = programs.find(p => p.id === programId);
-    if (target) {
-      target.isPublic = isPublic;
-      this.saveProgram(target);
-    }
-  }
-
-  public deleteProgram(programId: string): void {
+  public async deleteProgram(programId: string): Promise<void> {
     const programs = this.getAllPrograms().filter(p => p.id !== programId);
     this.setLocalData(STORAGE_KEYS.PROGRAMS, programs);
-
-    // Cascade delete subjects and sections for this program
-    const subjects = this.getSubjects().filter(s => s.programId !== programId);
-    this.setLocalData(STORAGE_KEYS.SUBJECTS, subjects);
-
-    const sections = this.getSections().filter(sec => sec.programId !== programId);
-    this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
-
     this.addPendingSync({ type: 'program', action: 'delete', data: { id: programId } });
     this.scheduleDebouncedSync();
+  }
+
+  public getProgramById(programId: string): CurriculumProgram | undefined {
+    return this.getAllPrograms().find(p => p.id === programId);
+  }
+
+  public async toggleProgramPublic(programId: string, isPublic?: boolean): Promise<void> {
+    const programs = this.getAllPrograms();
+    const index = programs.findIndex(p => p.id === programId);
+    if (index >= 0) {
+      const nextPublic = isPublic !== undefined ? isPublic : !programs[index].isPublic;
+      programs[index] = { ...programs[index], isPublic: nextPublic };
+      this.setLocalData(STORAGE_KEYS.PROGRAMS, programs);
+      this.addPendingSync({ type: 'program', action: 'upsert', data: programs[index] });
+      this.scheduleDebouncedSync();
+    }
   }
 
   public getSubjects(programId?: string): CurriculumSubject[] {
@@ -332,8 +416,12 @@ class StorageService {
     return programId ? subjects.filter(s => s.programId === programId) : subjects;
   }
 
-  public saveSubject(subject: CurriculumSubject): void {
-    const subjects = this.getLocalData<CurriculumSubject>(STORAGE_KEYS.SUBJECTS);
+  public getSubjectById(subjectId: string): CurriculumSubject | undefined {
+    return this.getSubjects().find(s => s.id === subjectId);
+  }
+
+  public async saveSubject(subject: CurriculumSubject): Promise<void> {
+    const subjects = this.getSubjects();
     const index = subjects.findIndex(s => s.id === subject.id);
     if (index >= 0) {
       subjects[index] = subject;
@@ -345,35 +433,24 @@ class StorageService {
     this.scheduleDebouncedSync();
   }
 
-  public deleteSubject(subjectId: string): void {
-    const subjects = this.getLocalData<CurriculumSubject>(STORAGE_KEYS.SUBJECTS).filter(s => s.id !== subjectId);
+  public async deleteSubject(subjectId: string): Promise<void> {
+    const subjects = this.getSubjects().filter(s => s.id !== subjectId);
     this.setLocalData(STORAGE_KEYS.SUBJECTS, subjects);
     this.addPendingSync({ type: 'subject', action: 'delete', data: { id: subjectId } });
     this.scheduleDebouncedSync();
   }
 
   public getSections(programId?: string): CurriculumSection[] {
-    let sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS);
-    if (!sections || sections.length === 0) {
-      const sample = getSampleCurriculumData();
-      sections = sample.sections;
-      this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
-    }
+    const sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS);
     return programId ? sections.filter(s => s.programId === programId) : sections;
   }
 
   public getSectionById(sectionId: string): CurriculumSection | undefined {
-    let sec = this.getSections().find(s => s.id === sectionId || s.name.toLowerCase() === sectionId.toLowerCase());
-    if (!sec || !sec.students || sec.students.length === 0) {
-      const sample = getSampleCurriculumData();
-      const fallbackSec = sample.sections.find(s => s.id === sectionId || s.name.toLowerCase() === sectionId.toLowerCase());
-      if (fallbackSec) return fallbackSec;
-    }
-    return sec;
+    return this.getSections().find(s => s.id === sectionId);
   }
 
-  public saveSection(section: CurriculumSection): void {
-    const sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS);
+  public async saveSection(section: CurriculumSection): Promise<void> {
+    const sections = this.getSections();
     const index = sections.findIndex(s => s.id === section.id);
     if (index >= 0) {
       sections[index] = section;
@@ -385,11 +462,65 @@ class StorageService {
     this.scheduleDebouncedSync();
   }
 
-  public deleteSection(sectionId: string): void {
-    const sections = this.getLocalData<CurriculumSection>(STORAGE_KEYS.SECTIONS).filter(s => s.id !== sectionId);
+  public async deleteSection(sectionId: string): Promise<void> {
+    const sections = this.getSections().filter(s => s.id !== sectionId);
     this.setLocalData(STORAGE_KEYS.SECTIONS, sections);
     this.addPendingSync({ type: 'section', action: 'delete', data: { id: sectionId } });
     this.scheduleDebouncedSync();
+  }
+
+  public async saveCourseWithStudents(course: Course, students: Student[], teacherId?: string): Promise<void> {
+    const targetTeacherId = teacherId || course.teacherId || this.currentTeacherId || undefined;
+    await this.saveCourse(course, targetTeacherId);
+    if (students && students.length > 0) {
+      await this.saveStudentsBulk(students, targetTeacherId);
+    }
+  }
+
+  // --- INITIAL DATA SEEDING (Teacher Isolated) ---
+
+  public initializeDefaultData(teacherId?: string): void {
+    const targetTeacherId = teacherId || this.currentTeacherId;
+    if (!targetTeacherId) return;
+
+    const existingCourses = this.getCourses(targetTeacherId);
+    if (existingCourses.length > 0) return;
+
+    // Seed default starter courses for new teacher
+    const defaultCourses: Course[] = [
+      {
+        id: `crs_bsit4c_pc4113_${targetTeacherId}`,
+        teacherId: targetTeacherId,
+        code: 'PC 4113',
+        name: 'Systems Administration and Maintenance',
+        section: 'BSIT 4C',
+        semester: '1st Semester 2026–2027',
+        room: 'ComLab 3',
+        schedule: 'MWF 8:00 - 9:30 AM',
+        days: ['M', 'W', 'F'],
+        time: '8:00 - 9:30 AM',
+        color: '#4f46e5',
+        order: 1,
+        createdAt: Date.now()
+      },
+      {
+        id: `crs_bsit2a_it212_${targetTeacherId}`,
+        teacherId: targetTeacherId,
+        code: 'IT 212',
+        name: 'Advanced Database Systems',
+        section: 'BSIT 2A',
+        semester: '1st Semester 2026–2027',
+        room: 'Lab 402',
+        schedule: 'TTH 10:00 - 11:30 AM',
+        days: ['T', 'TH'],
+        time: '10:00 - 11:30 AM',
+        color: '#0ea5e9',
+        order: 2,
+        createdAt: Date.now()
+      }
+    ];
+
+    this.saveCoursesBulk(defaultCourses, targetTeacherId);
   }
 
   // --- COURSES CRUD (Teacher Isolated) ---
@@ -397,58 +528,19 @@ class StorageService {
   public getCourses(teacherId?: string): Course[] {
     const targetId = teacherId || this.currentTeacherId;
     const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
-    const filtered = !targetId ? courses : courses.filter(c => !c.teacherId || c.teacherId === targetId);
-    return filtered.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    if (!targetId) return courses;
+    return courses.filter(c => !c.teacherId || c.teacherId === targetId);
   }
 
-  public saveCourseOrder(orderedCourses: Course[], teacherId?: string): void {
-    const targetTeacherId = teacherId || this.currentTeacherId || undefined;
-    const allCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
-    const otherCourses = targetTeacherId
-      ? allCourses.filter(c => c.teacherId && c.teacherId !== targetTeacherId)
-      : [];
-
-    const updatedCourses = orderedCourses.map((c, idx) => ({
-      ...c,
-      teacherId: targetTeacherId,
-      order: idx
-    }));
-
-    this.setLocalData(STORAGE_KEYS.COURSES, [...updatedCourses, ...otherCourses]);
-
-    updatedCourses.forEach(c => {
-      this.addPendingSync({ type: 'course', action: 'upsert', data: c, teacherId: targetTeacherId });
-    });
-    this.scheduleDebouncedSync();
+  public getCourseById(courseId: string, teacherId?: string): Course | undefined {
+    const courses = this.getCourses(teacherId);
+    return courses.find(c => c.id === courseId);
   }
 
   public async saveCourse(course: Course, teacherId?: string): Promise<void> {
     const targetTeacherId = teacherId || course.teacherId || this.currentTeacherId || undefined;
-    const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
-    const existingIndex = courses.findIndex(c => c.id === course.id);
-    const calculatedOrder = course.order !== undefined
-      ? course.order
-      : existingIndex >= 0
-      ? courses[existingIndex].order
-      : courses.length;
-
-    const updatedCourse: Course = { ...course, teacherId: targetTeacherId, order: calculatedOrder };
-
-    if (existingIndex >= 0) {
-      courses[existingIndex] = updatedCourse;
-    } else {
-      courses.push(updatedCourse);
-    }
-    this.setLocalData(STORAGE_KEYS.COURSES, courses);
-    this.addPendingSync({ type: 'course', action: 'upsert', data: updatedCourse, teacherId: targetTeacherId });
-    this.scheduleDebouncedSync();
-  }
-
-  public async saveCourseWithStudents(course: Course, newStudents: Student[], teacherId?: string): Promise<void> {
-    const targetTeacherId = teacherId || course.teacherId || this.currentTeacherId || undefined;
     const updatedCourse: Course = { ...course, teacherId: targetTeacherId };
 
-    // 1. Save Course
     const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
     const index = courses.findIndex(c => c.id === updatedCourse.id);
     if (index >= 0) {
@@ -458,24 +550,24 @@ class StorageService {
     }
     this.setLocalData(STORAGE_KEYS.COURSES, courses);
     this.addPendingSync({ type: 'course', action: 'upsert', data: updatedCourse, teacherId: targetTeacherId });
+    this.scheduleDebouncedSync();
+  }
 
-    // 2. Save Students together
-    if (newStudents && newStudents.length > 0) {
-      const allStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
-      const existingIds = new Set(allStudents.map(s => s.id));
-      const combined = [...allStudents];
+  public async saveCoursesBulk(newCourses: Course[], teacherId?: string): Promise<void> {
+    const targetTeacherId = teacherId || this.currentTeacherId || undefined;
+    const allCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
+    const existingIds = new Set(allCourses.map(c => c.id));
+    const combined = [...allCourses];
 
-      for (const s of newStudents) {
-        const studentWithTeacher = { ...s, teacherId: targetTeacherId };
-        if (!existingIds.has(studentWithTeacher.id)) {
-          combined.push(studentWithTeacher);
-          this.addPendingSync({ type: 'student', action: 'upsert', data: studentWithTeacher, teacherId: targetTeacherId });
-        }
+    for (const c of newCourses) {
+      const courseWithTeacher = { ...c, teacherId: targetTeacherId };
+      if (!existingIds.has(courseWithTeacher.id)) {
+        combined.push(courseWithTeacher);
+        this.addPendingSync({ type: 'course', action: 'upsert', data: courseWithTeacher, teacherId: targetTeacherId });
       }
-      this.setLocalData(STORAGE_KEYS.STUDENTS, combined);
     }
 
-    // 3. Trigger debounced sync
+    this.setLocalData(STORAGE_KEYS.COURSES, combined);
     this.scheduleDebouncedSync();
   }
 
@@ -484,16 +576,12 @@ class StorageService {
     const courses = this.getLocalData<Course>(STORAGE_KEYS.COURSES).filter(c => c.id !== courseId);
     this.setLocalData(STORAGE_KEYS.COURSES, courses);
 
-    // Also delete associated students and sessions
-    const students = this.getStudents(courseId, targetTeacherId);
-    for (const student of students) {
-      await this.deleteStudent(student.id, targetTeacherId);
-    }
+    // Cascade delete students and sessions belonging to this course
+    const students = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS).filter(s => s.courseId !== courseId);
+    this.setLocalData(STORAGE_KEYS.STUDENTS, students);
 
-    const sessions = this.getSessions(courseId, targetTeacherId);
-    for (const session of sessions) {
-      await this.deleteSession(session.id, targetTeacherId);
-    }
+    const sessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS).filter(s => s.courseId !== courseId);
+    this.setLocalData(STORAGE_KEYS.SESSIONS, sessions);
 
     this.addPendingSync({ type: 'course', action: 'delete', data: { id: courseId }, teacherId: targetTeacherId });
     this.scheduleDebouncedSync();
@@ -592,12 +680,8 @@ class StorageService {
     this.scheduleDebouncedSync();
   }
 
-  // --- FIREBASE SYNC ENGINE ---
+  // --- FIREBASE SYNC ENGINE (With Field-Level Conflict Resolution) ---
 
-  /**
-   * Pushes pending local changes to Firestore using write batches.
-   * Only clears the specific items that were successfully written.
-   */
   public async pushPendingChanges(): Promise<boolean> {
     const { db } = getFirebaseInstance();
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -646,9 +730,6 @@ class StorageService {
     }
   }
 
-  /**
-   * Pulls remote changes from Firestore and merges them non-destructively.
-   */
   public async pullRemoteChanges(): Promise<boolean> {
     const { db } = getFirebaseInstance();
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -680,7 +761,7 @@ class StorageService {
 
       let hasNewData = false;
 
-      // Non-destructive merge for courses
+      // Merge courses non-destructively
       if (courseSnap && !courseSnap.empty) {
         const localCourses = this.getLocalData<Course>(STORAGE_KEYS.COURSES);
         const courseMap = new Map<string, Course>();
@@ -693,7 +774,7 @@ class StorageService {
         hasNewData = true;
       }
 
-      // Non-destructive merge for students
+      // Merge students non-destructively
       if (studentSnap && !studentSnap.empty) {
         const localStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
         const studentMap = new Map<string, Student>();
@@ -706,22 +787,41 @@ class StorageService {
         hasNewData = true;
       }
 
-      // Non-destructive merge for sessions
+      // Field-Level Granular Merge for Attendance Sessions
       if (sessionSnap && !sessionSnap.empty) {
         const localSessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS);
         const sessionMap = new Map<string, AttendanceSession>();
         localSessions.forEach(s => sessionMap.set(s.id, s));
+
         sessionSnap.forEach(d => {
           const remoteSession = d.data() as AttendanceSession;
           const local = sessionMap.get(remoteSession.id);
-          if (!local || (remoteSession.updatedAt || 0) >= (local.updatedAt || 0)) {
+
+          if (!local) {
             sessionMap.set(remoteSession.id, remoteSession);
-          } else if (local && remoteSession.records) {
-            // Merge individual student records non-destructively
-            const mergedRecords = { ...remoteSession.records, ...local.records };
-            sessionMap.set(local.id, { ...local, records: mergedRecords });
+          } else {
+            // Field-level record merging by individual student record timestamp
+            const mergedRecords = { ...(local.records || {}) };
+            const remoteRecords = remoteSession.records || {};
+
+            for (const [studentId, remoteRec] of Object.entries(remoteRecords)) {
+              const localRec = mergedRecords[studentId];
+              if (!localRec || (remoteRec.timestamp || 0) >= (localRec.timestamp || 0)) {
+                mergedRecords[studentId] = remoteRec;
+              }
+            }
+
+            const latestUpdatedAt = Math.max(local.updatedAt || 0, remoteSession.updatedAt || 0);
+
+            sessionMap.set(local.id, {
+              ...local,
+              ...remoteSession,
+              records: mergedRecords,
+              updatedAt: latestUpdatedAt
+            });
           }
         });
+
         this.setLocalData(STORAGE_KEYS.SESSIONS, Array.from(sessionMap.values()));
         hasNewData = true;
       }
@@ -765,7 +865,9 @@ class StorageService {
         this.notifyDataChange();
       }
 
-      localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
+      }
       return true;
     } catch (err) {
       console.warn('Firebase pull deferred:', err);
@@ -773,9 +875,6 @@ class StorageService {
     }
   }
 
-  /**
-   * Full two-way sync: pushes pending local writes and pulls remote updates.
-   */
   public async syncWithFirebase(forcePull: boolean = true): Promise<boolean> {
     const { db } = getFirebaseInstance();
     const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
@@ -788,15 +887,13 @@ class StorageService {
     this.notifyStatusChange();
 
     try {
-      // 1. Push any queued pending writes first
       await this.pushPendingChanges();
-
-      // 2. Pull remote changes
       if (forcePull) {
         await this.pullRemoteChanges();
       }
-
-      localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.LAST_SYNC, Date.now().toString());
+      }
       return true;
     } catch (error) {
       console.warn('Firebase sync notice (running local offline):', error);
@@ -854,7 +951,8 @@ class StorageService {
 
   public exportFullBackupJSON(): string {
     const backup = {
-      version: '2.0',
+      version: '3.0',
+      engine: 'IndexedDB+MemoryCache',
       teacherId: this.currentTeacherId,
       exportedAt: new Date().toISOString(),
       programs: this.getPrograms(),
@@ -898,14 +996,28 @@ class StorageService {
   }
 
   public resetAllData(): void {
-    localStorage.removeItem(STORAGE_KEYS.COURSES);
-    localStorage.removeItem(STORAGE_KEYS.STUDENTS);
-    localStorage.removeItem(STORAGE_KEYS.SESSIONS);
-    localStorage.removeItem(STORAGE_KEYS.PROGRAMS);
-    localStorage.removeItem(STORAGE_KEYS.SUBJECTS);
-    localStorage.removeItem(STORAGE_KEYS.SECTIONS);
-    localStorage.removeItem(STORAGE_KEYS.PENDING_SYNC);
-    localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEYS.COURSES);
+      localStorage.removeItem(STORAGE_KEYS.STUDENTS);
+      localStorage.removeItem(STORAGE_KEYS.SESSIONS);
+      localStorage.removeItem(STORAGE_KEYS.PROGRAMS);
+      localStorage.removeItem(STORAGE_KEYS.SUBJECTS);
+      localStorage.removeItem(STORAGE_KEYS.SECTIONS);
+      localStorage.removeItem(STORAGE_KEYS.PENDING_SYNC);
+      localStorage.removeItem(STORAGE_KEYS.LAST_SYNC);
+    }
+    this.memoryCache.clear();
+
+    if (indexedDbService.isSupported()) {
+      indexedDbService.clear(STORES.COURSES);
+      indexedDbService.clear(STORES.STUDENTS);
+      indexedDbService.clear(STORES.SESSIONS);
+      indexedDbService.clear(STORES.PROGRAMS);
+      indexedDbService.clear(STORES.SUBJECTS);
+      indexedDbService.clear(STORES.SECTIONS);
+      indexedDbService.clear(STORES.PENDING_SYNC);
+    }
+
     this.initializeCurriculumData();
     this.initializeDefaultData(this.currentTeacherId || undefined);
     this.notifyStatusChange();

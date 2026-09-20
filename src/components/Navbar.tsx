@@ -10,6 +10,7 @@ import {
   Download
 } from 'lucide-react';
 import { SyncStatus, TeacherUser } from '../types';
+import { storageService } from '../services/storageService';
 
 interface NavbarProps {
   syncStatus: SyncStatus;
@@ -124,14 +125,34 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
               >
                 <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{teacher.name}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
                   {teacher.email}
                 </div>
-                {teacher.department && (
-                  <div style={{ fontSize: '0.72rem', color: 'var(--primary)', fontWeight: 600, marginBottom: '0.75rem' }}>
-                    {teacher.department}
-                  </div>
-                )}
+                {(() => {
+                  const program = teacher.programId ? storageService.getProgramById(teacher.programId) : undefined;
+                  const displayTag = program
+                    ? `${program.code} — ${program.name}`
+                    : (teacher.department === 'College of Computer Studies' || teacher.department === 'College of Technology'
+                        ? 'BSIT — Information Technology'
+                        : teacher.department || 'BSIT');
+                  return (
+                    <div
+                      style={{
+                        display: 'inline-block',
+                        padding: '0.2rem 0.5rem',
+                        background: 'rgba(26, 115, 232, 0.1)',
+                        color: 'var(--primary)',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        marginBottom: '0.75rem',
+                        lineHeight: 1.3
+                      }}
+                    >
+                      {displayTag}
+                    </div>
+                  );
+                })()}
 
                 <button
                   className="btn btn-sm btn-secondary"

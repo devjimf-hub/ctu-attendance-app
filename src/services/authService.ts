@@ -102,7 +102,7 @@ export const authService = {
 
     const safeEmailKey = cleanEmail.replace(/[^a-z0-9]/g, '_');
     let teacherName = fbUser.displayName || cleanEmail.split('@')[0] || 'Faculty Member';
-    let teacherDepartment = 'College of Technology';
+    let teacherDepartment = 'BSIT';
     let teacherProgramId = 'prog_bsit';
 
     // Try to load extra faculty profile info from Firestore
@@ -154,7 +154,7 @@ export const authService = {
     name: string,
     email: string,
     password: string,
-    department: string = 'College of Technology',
+    department: string = 'BSIT',
     programId: string = 'prog_bsit'
   ): Promise<TeacherUser> {
     const auth = getFirebaseAuth();
@@ -164,7 +164,7 @@ export const authService = {
 
     const cleanName = name.trim() || 'Faculty Member';
     const cleanEmail = email.trim().toLowerCase();
-    const cleanDept = department.trim() || 'College of Technology';
+    const cleanDept = department.trim() || 'BSIT';
 
     const userCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     const fbUser = userCred.user;
