@@ -14,7 +14,6 @@ import { calculateStudentSummaries, getLocalDateString } from './utils/collegeUt
 import { LoginScreen } from './components/LoginScreen';
 import { AdminPortal } from './components/AdminPortal';
 import { Navbar } from './components/Navbar';
-import { OfflineBanner } from './components/OfflineBanner';
 import { Dashboard } from './components/Dashboard';
 import { SubjectDetail } from './components/SubjectDetail';
 import { CourseModal } from './components/CourseModal';
@@ -391,12 +390,6 @@ export function App() {
         onLogout={handleLogout}
         canInstallPwa={!!deferredPrompt}
         onInstallPwa={handleInstallPwa}
-      />
-
-      {/* Offline Alert */}
-      <OfflineBanner
-        syncStatus={syncStatus}
-        onRetrySync={() => storageService.syncWithFirebase()}
       />
 
       {/* Main View Area */}

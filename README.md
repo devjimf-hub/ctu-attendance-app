@@ -4,6 +4,25 @@
 
 ---
 
+## 📚 Comprehensive Documentation
+
+Complete documentation with high-resolution screenshots, architecture diagrams, and user guides is available in the [`docs/`](./docs/README.md) directory:
+
+- 📄 **Word Document Format**: [**`Class_Check_Full_Documentation.docx`**](./docs/Class_Check_Full_Documentation.docx) *(Full formatted manual with embedded figures)*
+
+| Document | Description |
+| :--- | :--- |
+| [🛠️ **Technology Stack Specification**](./docs/technology-stack.md) | In-depth breakdown of React 19, TypeScript 5.7, Vite 6, PWA Workbox, Firebase 11, Vanilla CSS tokens, and dependencies |
+| [💻 **Software Engineering & Dev Guide**](./docs/development-guide.md) | Design patterns (Service Repository, Pub/Sub, Pure Parsers), dev setup, testing, coding standards, and CI/CD |
+| [📖 **Faculty & Instructor User Manual**](./docs/user-guide.md) | Complete guide for logging in, setting up classes, taking roll calls (List, Flashcards, Seating Grid), and tracking exam eligibility |
+| [🏛️ **University Department & Admin Guide**](./docs/admin-guide.md) | Administrative guide for managing degree programs, subject catalogs, and master block rosters |
+| [🏗️ **System Architecture & Design**](./docs/architecture.md) | React 19 + Vite architecture, offline-first storage engine, and Firestore data isolation model |
+| [🚀 **Deployment & Cloud Sync Guide**](./docs/deployment-and-offline.md) | PWA installation on iOS/Android/Desktop, Firebase Firestore sync, and Vercel/Firebase hosting |
+| [🗄️ **Database Schema & Data Models**](./docs/database-schema.md) | TypeScript interfaces, Entity Relationship Diagrams (ERD), and LocalStorage/Firestore schemas |
+
+
+---
+
 ## 🌟 Key Features
 
 - **📱 Progressive Web App (PWA) & Offline Sync**:
