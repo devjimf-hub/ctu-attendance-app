@@ -151,22 +151,19 @@ class StorageService {
         const idbItems = await indexedDbService.getAll<any>(storeName);
         const localItems = this.memoryCache.get(key) || [];
 
-        if (idbItems.length > 0) {
-          // If IndexedDB has items, merge them with any local memory items non-destructively
-          const itemMap = new Map<string, any>();
-          idbItems.forEach(item => itemMap.set(item.id, item));
-          localItems.forEach(item => {
-            if (!itemMap.has(item.id)) {
-              itemMap.set(item.id, item);
+        if (idbItems.length > 0 && localItems.length === 0) {
+          // If memory/localStorage is empty but IndexedDB has items, restore from IndexedDB
+          this.memoryCache.set(key, idbItems);
+          if (typeof localStorage !== 'undefined') {
+            try {
+              localStorage.setItem(key, JSON.stringify(idbItems));
+            } catch (e) {
+              console.warn(`LocalStorage write warning during hydration for ${key}:`, e);
             }
-          });
-          const merged = Array.from(itemMap.values());
-          this.memoryCache.set(key, merged);
-          // Sync merged data back to IndexedDB
-          await indexedDbService.putBulk(storeName, merged);
+          }
         } else if (localItems.length > 0) {
-          // If IndexedDB was empty, migrate all local items into IndexedDB
-          await indexedDbService.putBulk(storeName, localItems);
+          // Sync active state down to IndexedDB so it matches precisely
+          await indexedDbService.setAll(storeName, localItems);
         }
       }
 
@@ -289,7 +286,7 @@ class StorageService {
     // 3. Asynchronous IndexedDB persistent write (unlimited capacity)
     const storeName = KEY_TO_STORE_MAP[key];
     if (storeName && indexedDbService.isSupported()) {
-      indexedDbService.putBulk(storeName, data).catch(err => {
+      indexedDbService.setAll(storeName, data).catch(err => {
         console.warn(`IndexedDB background write for ${storeName}:`, err);
       });
     }
@@ -479,48 +476,8 @@ class StorageService {
 
   // --- INITIAL DATA SEEDING (Teacher Isolated) ---
 
-  public initializeDefaultData(teacherId?: string): void {
-    const targetTeacherId = teacherId || this.currentTeacherId;
-    if (!targetTeacherId) return;
-
-    const existingCourses = this.getCourses(targetTeacherId);
-    if (existingCourses.length > 0) return;
-
-    // Seed default starter courses for new teacher
-    const defaultCourses: Course[] = [
-      {
-        id: `crs_bsit4c_pc4113_${targetTeacherId}`,
-        teacherId: targetTeacherId,
-        code: 'PC 4113',
-        name: 'Systems Administration and Maintenance',
-        section: 'BSIT 4C',
-        semester: '1st Semester 2026–2027',
-        room: 'ComLab 3',
-        schedule: 'MWF 8:00 - 9:30 AM',
-        days: ['M', 'W', 'F'],
-        time: '8:00 - 9:30 AM',
-        color: '#4f46e5',
-        order: 1,
-        createdAt: Date.now()
-      },
-      {
-        id: `crs_bsit2a_it212_${targetTeacherId}`,
-        teacherId: targetTeacherId,
-        code: 'IT 212',
-        name: 'Advanced Database Systems',
-        section: 'BSIT 2A',
-        semester: '1st Semester 2026–2027',
-        room: 'Lab 402',
-        schedule: 'TTH 10:00 - 11:30 AM',
-        days: ['T', 'TH'],
-        time: '10:00 - 11:30 AM',
-        color: '#0ea5e9',
-        order: 2,
-        createdAt: Date.now()
-      }
-    ];
-
-    this.saveCoursesBulk(defaultCourses, targetTeacherId);
+  public initializeDefaultData(_teacherId?: string): void {
+    // Intentionally left empty so refreshing the app does not auto-create dummy starter courses with no students
   }
 
   // --- COURSES CRUD (Teacher Isolated) ---
@@ -577,11 +534,21 @@ class StorageService {
     this.setLocalData(STORAGE_KEYS.COURSES, courses);
 
     // Cascade delete students and sessions belonging to this course
-    const students = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS).filter(s => s.courseId !== courseId);
-    this.setLocalData(STORAGE_KEYS.STUDENTS, students);
+    const allStudents = this.getLocalData<Student>(STORAGE_KEYS.STUDENTS);
+    const removedStudents = allStudents.filter(s => s.courseId === courseId);
+    const remainingStudents = allStudents.filter(s => s.courseId !== courseId);
+    this.setLocalData(STORAGE_KEYS.STUDENTS, remainingStudents);
+    for (const s of removedStudents) {
+      this.addPendingSync({ type: 'student', action: 'delete', data: { id: s.id }, teacherId: targetTeacherId });
+    }
 
-    const sessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS).filter(s => s.courseId !== courseId);
-    this.setLocalData(STORAGE_KEYS.SESSIONS, sessions);
+    const allSessions = this.getLocalData<AttendanceSession>(STORAGE_KEYS.SESSIONS);
+    const removedSessions = allSessions.filter(s => s.courseId === courseId);
+    const remainingSessions = allSessions.filter(s => s.courseId !== courseId);
+    this.setLocalData(STORAGE_KEYS.SESSIONS, remainingSessions);
+    for (const sess of removedSessions) {
+      this.addPendingSync({ type: 'session', action: 'delete', data: { id: sess.id }, teacherId: targetTeacherId });
+    }
 
     this.addPendingSync({ type: 'course', action: 'delete', data: { id: courseId }, teacherId: targetTeacherId });
     this.scheduleDebouncedSync();
@@ -760,6 +727,12 @@ class StorageService {
       ]);
 
       let hasNewData = false;
+      const pendingDeletes = new Set(
+        this.getPendingSyncItems()
+          .filter(p => p.action === 'delete')
+          .map(p => p.data?.id)
+          .filter(Boolean)
+      );
 
       // Merge courses non-destructively
       if (courseSnap && !courseSnap.empty) {
@@ -768,7 +741,9 @@ class StorageService {
         localCourses.forEach(c => courseMap.set(c.id, c));
         courseSnap.forEach(d => {
           const remoteCourse = d.data() as Course;
-          courseMap.set(remoteCourse.id, remoteCourse);
+          if (!pendingDeletes.has(remoteCourse.id)) {
+            courseMap.set(remoteCourse.id, remoteCourse);
+          }
         });
         this.setLocalData(STORAGE_KEYS.COURSES, Array.from(courseMap.values()));
         hasNewData = true;
@@ -781,7 +756,9 @@ class StorageService {
         localStudents.forEach(s => studentMap.set(s.id, s));
         studentSnap.forEach(d => {
           const remoteStudent = d.data() as Student;
-          studentMap.set(remoteStudent.id, remoteStudent);
+          if (!pendingDeletes.has(remoteStudent.id)) {
+            studentMap.set(remoteStudent.id, remoteStudent);
+          }
         });
         this.setLocalData(STORAGE_KEYS.STUDENTS, Array.from(studentMap.values()));
         hasNewData = true;
@@ -795,6 +772,8 @@ class StorageService {
 
         sessionSnap.forEach(d => {
           const remoteSession = d.data() as AttendanceSession;
+          if (pendingDeletes.has(remoteSession.id)) return;
+
           const local = sessionMap.get(remoteSession.id);
 
           if (!local) {
@@ -805,6 +784,7 @@ class StorageService {
             const remoteRecords = remoteSession.records || {};
 
             for (const [studentId, remoteRec] of Object.entries(remoteRecords)) {
+              if (pendingDeletes.has(studentId)) continue;
               const localRec = mergedRecords[studentId];
               if (!localRec || (remoteRec.timestamp || 0) >= (localRec.timestamp || 0)) {
                 mergedRecords[studentId] = remoteRec;
@@ -833,7 +813,9 @@ class StorageService {
         localProgs.forEach(p => progMap.set(p.id, p));
         progSnap.forEach(d => {
           const remoteProg = d.data() as CurriculumProgram;
-          progMap.set(remoteProg.id, remoteProg);
+          if (!pendingDeletes.has(remoteProg.id)) {
+            progMap.set(remoteProg.id, remoteProg);
+          }
         });
         this.setLocalData(STORAGE_KEYS.PROGRAMS, Array.from(progMap.values()));
         hasNewData = true;
@@ -844,7 +826,9 @@ class StorageService {
         localSubjs.forEach(s => subjMap.set(s.id, s));
         subjSnap.forEach(d => {
           const remoteSubj = d.data() as CurriculumSubject;
-          subjMap.set(remoteSubj.id, remoteSubj);
+          if (!pendingDeletes.has(remoteSubj.id)) {
+            subjMap.set(remoteSubj.id, remoteSubj);
+          }
         });
         this.setLocalData(STORAGE_KEYS.SUBJECTS, Array.from(subjMap.values()));
         hasNewData = true;
@@ -855,7 +839,9 @@ class StorageService {
         localSecs.forEach(s => secMap.set(s.id, s));
         secSnap.forEach(d => {
           const remoteSec = d.data() as CurriculumSection;
-          secMap.set(remoteSec.id, remoteSec);
+          if (!pendingDeletes.has(remoteSec.id)) {
+            secMap.set(remoteSec.id, remoteSec);
+          }
         });
         this.setLocalData(STORAGE_KEYS.SECTIONS, Array.from(secMap.values()));
         hasNewData = true;
@@ -1019,7 +1005,7 @@ class StorageService {
     }
 
     this.initializeCurriculumData();
-    this.initializeDefaultData(this.currentTeacherId || undefined);
+    this.notifyDataChange();
     this.notifyStatusChange();
   }
 }

@@ -88,7 +88,6 @@ export function App() {
   useEffect(() => {
     if (teacher) {
       storageService.setActiveTeacher(teacher.id);
-      storageService.initializeDefaultData(teacher.id);
       refreshLocalData();
     } else {
       storageService.setActiveTeacher(null);
@@ -169,6 +168,7 @@ export function App() {
         courseId: '',
         date: currentDate,
         sessionType: currentSessionType,
+        topic: currentTopic,
         records: {},
         createdAt: Date.now(),
         updatedAt: Date.now()
@@ -179,7 +179,12 @@ export function App() {
       s => s.date === currentDate && s.sessionType === currentSessionType
     );
 
-    if (existing) return existing;
+    if (existing) {
+      return {
+        ...existing,
+        topic: currentTopic !== '' ? currentTopic : (existing.topic || '')
+      };
+    }
 
     return {
       id: `${selectedCourseId}_${currentDate}_${currentSessionType}`,
@@ -248,7 +253,7 @@ export function App() {
   };
 
   const handleDeleteCourse = async (courseId: string) => {
-    await storageService.deleteCourse(courseId);
+    await storageService.deleteCourse(courseId, teacher?.id);
     refreshLocalData();
     if (selectedCourseId === courseId) {
       setSelectedCourseId(null);
@@ -257,17 +262,17 @@ export function App() {
 
   // Student Actions
   const handleAddStudents = async (newStudents: Student[]) => {
-    await storageService.saveStudentsBulk(newStudents);
+    await storageService.saveStudentsBulk(newStudents, teacher?.id);
     refreshLocalData();
   };
 
   const handleEditStudent = async (updatedStudent: Student) => {
-    await storageService.saveStudent(updatedStudent);
+    await storageService.saveStudent(updatedStudent, teacher?.id);
     refreshLocalData();
   };
 
   const handleDeleteStudent = async (studentId: string) => {
-    await storageService.deleteStudent(studentId);
+    await storageService.deleteStudent(studentId, teacher?.id);
     refreshLocalData();
   };
 
@@ -291,7 +296,7 @@ export function App() {
       updatedAt: Date.now()
     };
 
-    await storageService.saveSession(updatedSession);
+    await storageService.saveSession(updatedSession, teacher?.id);
     refreshLocalData();
   };
 
@@ -316,7 +321,35 @@ export function App() {
       updatedAt: Date.now()
     };
 
-    await storageService.saveSession(updatedSession);
+    await storageService.saveSession(updatedSession, teacher?.id);
+    refreshLocalData();
+  };
+
+  const handleUpdateSessionDate = (date: string) => {
+    setCurrentDate(date);
+    const existing = activeCourseSessions.find(
+      s => s.date === date && s.sessionType === currentSessionType
+    );
+    setCurrentTopic(existing?.topic || '');
+  };
+
+  const handleUpdateSessionType = (type: 'lecture' | 'lab' | 'tutorial' | 'exam') => {
+    setCurrentSessionType(type);
+    const existing = activeCourseSessions.find(
+      s => s.date === currentDate && s.sessionType === type
+    );
+    setCurrentTopic(existing?.topic || '');
+  };
+
+  const handleUpdateSessionTopic = async (topic: string) => {
+    setCurrentTopic(topic);
+    if (!selectedCourseId) return;
+    const updatedSession: AttendanceSession = {
+      ...currentSession,
+      topic,
+      updatedAt: Date.now()
+    };
+    await storageService.saveSession(updatedSession, teacher?.id);
     refreshLocalData();
   };
 
@@ -343,7 +376,7 @@ export function App() {
       updatedAt: Date.now()
     };
 
-    await storageService.saveSession(updatedSession);
+    await storageService.saveSession(updatedSession, teacher?.id);
     refreshLocalData();
   };
 
@@ -422,9 +455,9 @@ export function App() {
             onBackToDashboard={() => setSelectedCourseId(null)}
             onUpdateRecord={handleUpdateRecord}
             onBulkUpdateStatus={handleBulkUpdateStatus}
-            onUpdateSessionDate={date => setCurrentDate(date)}
-            onUpdateSessionType={type => setCurrentSessionType(type)}
-            onUpdateSessionTopic={topic => setCurrentTopic(topic)}
+            onUpdateSessionDate={handleUpdateSessionDate}
+            onUpdateSessionType={handleUpdateSessionType}
+            onUpdateSessionTopic={handleUpdateSessionTopic}
             onOpenRemarkModal={student => {
               setSelectedStudentForRemark(student);
               setIsRemarksModalOpen(true);

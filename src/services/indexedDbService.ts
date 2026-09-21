@@ -178,6 +178,33 @@ class IndexedDbService {
   }
 
   /**
+   * Set (replace) all items in a store atomically
+   */
+  public async setAll<T extends { id?: string; key?: string }>(storeName: StoreName, items: T[]): Promise<void> {
+    try {
+      const db = await this.initDb();
+      return new Promise<void>((resolve, reject) => {
+        const transaction = db.transaction(storeName, 'readwrite');
+        const store = transaction.objectStore(storeName);
+        store.clear();
+        for (const item of items) {
+          store.put(item);
+        }
+
+        transaction.oncomplete = () => {
+          resolve();
+        };
+
+        transaction.onerror = () => {
+          reject(transaction.error);
+        };
+      });
+    } catch (err) {
+      console.error(`Error in IndexedDB setAll(${storeName}):`, err);
+    }
+  }
+
+  /**
    * Bulk put (upsert) array of items into a store
    */
   public async putBulk<T extends { id?: string; key?: string }>(storeName: StoreName, items: T[]): Promise<void> {
