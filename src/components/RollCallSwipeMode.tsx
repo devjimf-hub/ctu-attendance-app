@@ -25,9 +25,16 @@ interface RollCallSwipeModeProps {
   students: Student[];
   session: AttendanceSession;
   summaries: StudentAttendanceSummary[];
-  onUpdateRecord: (studentId: string, status: AttendanceStatus) => void;
+  onUpdateRecord: (studentId: string, status: AttendanceStatus | null) => void;
   onOpenRemarkModal: (student: Student) => void;
   onSwitchToListMode: () => void;
+}
+
+interface SwipeHistoryEntry {
+  studentIndex: number;
+  studentId: string;
+  wasMarked: boolean;
+  previousStatus: AttendanceStatus | null;
 }
 
 export const RollCallSwipeMode: React.FC<RollCallSwipeModeProps> = ({
@@ -43,7 +50,7 @@ export const RollCallSwipeMode: React.FC<RollCallSwipeModeProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [cardExitDirection, setCardExitDirection] = useState<'left' | 'right' | 'up' | 'down' | null>(null);
-  const [historyStack, setHistoryStack] = useState<number[]>([]);
+  const [historyStack, setHistoryStack] = useState<SwipeHistoryEntry[]>([]);
 
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -75,6 +82,14 @@ export const RollCallSwipeMode: React.FC<RollCallSwipeModeProps> = ({
   const markStudent = (status: AttendanceStatus) => {
     if (!currentStudent) return;
 
+    const prevRecord = session.records[currentStudent.id];
+    const historyEntry: SwipeHistoryEntry = {
+      studentIndex: currentIndex,
+      studentId: currentStudent.id,
+      wasMarked: !!prevRecord,
+      previousStatus: prevRecord ? prevRecord.status : null
+    };
+
     triggerHaptic();
     onUpdateRecord(currentStudent.id, status);
 
@@ -85,7 +100,7 @@ export const RollCallSwipeMode: React.FC<RollCallSwipeModeProps> = ({
     else if (status === 'excused') setCardExitDirection('down');
 
     setTimeout(() => {
-      setHistoryStack(prev => [...prev, currentIndex]);
+      setHistoryStack(prev => [...prev, historyEntry]);
       setCardExitDirection(null);
       setDragOffset({ x: 0, y: 0 });
 
@@ -108,18 +123,45 @@ export const RollCallSwipeMode: React.FC<RollCallSwipeModeProps> = ({
   };
 
   const handleUndo = () => {
-    if (historyStack.length === 0) return;
-    const lastIdx = historyStack[historyStack.length - 1];
+    if (historyStack.length === 0) {
+      if (currentIndex > 0) {
+        setCurrentIndex(prev => prev - 1);
+        setCardExitDirection(null);
+        setDragOffset({ x: 0, y: 0 });
+        triggerHaptic();
+      }
+      return;
+    }
+
+    const lastEntry = historyStack[historyStack.length - 1];
     setHistoryStack(prev => prev.slice(0, prev.length - 1));
-    setCurrentIndex(lastIdx);
+    setCurrentIndex(lastEntry.studentIndex);
     setCardExitDirection(null);
     setDragOffset({ x: 0, y: 0 });
     triggerHaptic();
+
+    // Revert attendance record in session state
+    if (lastEntry.wasMarked && lastEntry.previousStatus) {
+      onUpdateRecord(lastEntry.studentId, lastEntry.previousStatus);
+    } else {
+      onUpdateRecord(lastEntry.studentId, null);
+    }
   };
 
   const handleSkip = () => {
-    if (currentIndex < students.length - 1) {
-      setHistoryStack(prev => [...prev, currentIndex]);
+    if (currentIndex < students.length) {
+      if (currentStudent) {
+        const prevRecord = session.records[currentStudent.id];
+        setHistoryStack(prev => [
+          ...prev,
+          {
+            studentIndex: currentIndex,
+            studentId: currentStudent.id,
+            wasMarked: !!prevRecord,
+            previousStatus: prevRecord ? prevRecord.status : null
+          }
+        ]);
+      }
       setCurrentIndex(prev => prev + 1);
       setDragOffset({ x: 0, y: 0 });
       triggerHaptic();
@@ -372,17 +414,28 @@ export const RollCallSwipeMode: React.FC<RollCallSwipeModeProps> = ({
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginTop: '0.4rem', marginBottom: '1.5rem' }}>
               All {totalCount} students have been checked and recorded for this session.
             </p>
-            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {historyStack.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleUndo}
+                  title="Undo the last marked student"
+                >
+                  <RotateCcw size={14} /> Undo Last Card
+                </button>
+              )}
               <button
+                type="button"
                 className="btn btn-secondary"
                 onClick={() => {
                   setCurrentIndex(0);
                   setHistoryStack([]);
                 }}
               >
-                <RotateCcw size={14} /> Review from Start
+                Review from Start
               </button>
-              <button className="btn btn-primary" onClick={onSwitchToListMode}>
+              <button type="button" className="btn btn-primary" onClick={onSwitchToListMode}>
                 View Full Roster
               </button>
             </div>

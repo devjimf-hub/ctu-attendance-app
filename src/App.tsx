@@ -277,18 +277,21 @@ export function App() {
   };
 
   // Roll Call Actions
-  const handleUpdateRecord = async (studentId: string, status: AttendanceStatus) => {
+  const handleUpdateRecord = async (studentId: string, status: AttendanceStatus | null) => {
     if (!selectedCourseId) return;
 
-    const updatedRecords = {
-      ...currentSession.records,
-      [studentId]: {
+    const updatedRecords = { ...currentSession.records };
+
+    if (status === null) {
+      delete updatedRecords[studentId];
+    } else {
+      updatedRecords[studentId] = {
         studentId,
         status,
         timestamp: Date.now(),
         remarks: currentSession.records[studentId]?.remarks
-      }
-    };
+      };
+    }
 
     const updatedSession: AttendanceSession = {
       ...currentSession,

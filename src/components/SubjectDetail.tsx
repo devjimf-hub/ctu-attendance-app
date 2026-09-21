@@ -30,7 +30,7 @@ interface SubjectDetailProps {
   summaries: StudentAttendanceSummary[];
   teacher: TeacherUser | null;
   onBackToDashboard: () => void;
-  onUpdateRecord: (studentId: string, status: AttendanceStatus) => void;
+  onUpdateRecord: (studentId: string, status: AttendanceStatus | null) => void;
   onBulkUpdateStatus: (status: AttendanceStatus, targetStudents?: Student[]) => void;
   onUpdateSessionDate: (date: string) => void;
   onUpdateSessionType: (type: 'lecture' | 'lab' | 'tutorial' | 'exam') => void;

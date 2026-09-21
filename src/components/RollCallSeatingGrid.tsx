@@ -18,7 +18,7 @@ interface RollCallSeatingGridProps {
   students: Student[];
   session: AttendanceSession;
   summaries: StudentAttendanceSummary[];
-  onUpdateRecord: (studentId: string, status: AttendanceStatus) => void;
+  onUpdateRecord: (studentId: string, status: AttendanceStatus | null) => void;
   onBulkUpdateStatus: (status: AttendanceStatus, targetStudents?: Student[]) => void;
   onOpenRemarkModal: (student: Student) => void;
 }
@@ -49,7 +49,7 @@ export const RollCallSeatingGrid: React.FC<RollCallSeatingGridProps> = ({
 
   /**
    * Cycle status on single tap:
-   * None -> Present -> Late -> Absent -> Excused -> (back to Present)
+   * None -> Present -> Late -> Absent -> Excused -> (None / Unmark)
    */
   const handleCycleStatus = (studentId: string) => {
     triggerHaptic();
@@ -63,7 +63,7 @@ export const RollCallSeatingGrid: React.FC<RollCallSeatingGridProps> = ({
     } else if (currentRecord.status === 'absent') {
       onUpdateRecord(studentId, 'excused');
     } else {
-      onUpdateRecord(studentId, 'present');
+      onUpdateRecord(studentId, null);
     }
   };
 

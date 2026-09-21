@@ -29,7 +29,7 @@ interface AttendanceSheetProps {
   students: Student[];
   session: AttendanceSession;
   summaries: StudentAttendanceSummary[];
-  onUpdateRecord: (studentId: string, status: AttendanceStatus) => void;
+  onUpdateRecord: (studentId: string, status: AttendanceStatus | null) => void;
   onBulkUpdateStatus: (status: AttendanceStatus, targetStudents?: Student[]) => void;
   onUpdateSessionDate: (date: string) => void;
   onUpdateSessionType: (type: 'lecture' | 'lab' | 'tutorial' | 'exam') => void;
@@ -462,8 +462,8 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                                 <button
                                   type="button"
                                   className={`status-btn ${currentStatus === 'present' ? 'active present' : ''}`}
-                                  onClick={() => onUpdateRecord(student.id, 'present')}
-                                  title="Mark Present"
+                                  onClick={() => onUpdateRecord(student.id, currentStatus === 'present' ? null : 'present')}
+                                  title={currentStatus === 'present' ? "Click to clear / unmark" : "Mark Present"}
                                 >
                                   <span>P</span>
                                   <span className="hide-on-mobile">Present</span>
@@ -472,8 +472,8 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                                 <button
                                   type="button"
                                   className={`status-btn ${currentStatus === 'absent' ? 'active absent' : ''}`}
-                                  onClick={() => onUpdateRecord(student.id, 'absent')}
-                                  title="Mark Absent"
+                                  onClick={() => onUpdateRecord(student.id, currentStatus === 'absent' ? null : 'absent')}
+                                  title={currentStatus === 'absent' ? "Click to clear / unmark" : "Mark Absent"}
                                 >
                                   <span>A</span>
                                   <span className="hide-on-mobile">Absent</span>
@@ -482,8 +482,8 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                                 <button
                                   type="button"
                                   className={`status-btn ${currentStatus === 'late' ? 'active late' : ''}`}
-                                  onClick={() => onUpdateRecord(student.id, 'late')}
-                                  title="Mark Late"
+                                  onClick={() => onUpdateRecord(student.id, currentStatus === 'late' ? null : 'late')}
+                                  title={currentStatus === 'late' ? "Click to clear / unmark" : "Mark Late"}
                                 >
                                   <span>L</span>
                                   <span className="hide-on-mobile">Late</span>
@@ -492,8 +492,8 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                                 <button
                                   type="button"
                                   className={`status-btn ${currentStatus === 'excused' ? 'active excused' : ''}`}
-                                  onClick={() => onUpdateRecord(student.id, 'excused')}
-                                  title="Mark Excused"
+                                  onClick={() => onUpdateRecord(student.id, currentStatus === 'excused' ? null : 'excused')}
+                                  title={currentStatus === 'excused' ? "Click to clear / unmark" : "Mark Excused"}
                                 >
                                   <span>E</span>
                                   <span className="hide-on-mobile">Excused</span>
