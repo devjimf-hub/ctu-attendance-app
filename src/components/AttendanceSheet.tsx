@@ -253,7 +253,18 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
       {activeModalMode && (
         <div className="modal-overlay" onClick={() => setActiveModalMode(null)}>
           <div
-            className="modal-content modal-rollcall"
+            className={`modal-content modal-rollcall modal-rollcall-${activeModalMode}`}
+            style={{
+              maxWidth:
+                activeModalMode === 'swipe'
+                  ? '680px'
+                  : activeModalMode === 'grid'
+                  ? '1180px'
+                  : '980px',
+              width: '95vw',
+              height: '90vh',
+              maxHeight: '92vh'
+            }}
             onClick={e => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -457,7 +468,7 @@ export const AttendanceSheet: React.FC<AttendanceSheetProps> = ({
                             </div>
 
                             {/* Tactile 4-way Status Selector & Note Button */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', flexShrink: 0 }}>
                               <div className="status-selector-group">
                                 <button
                                   type="button"

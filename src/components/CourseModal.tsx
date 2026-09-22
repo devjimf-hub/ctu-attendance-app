@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, BookOpen, Trash2, Calendar } from 'lucide-react';
+import { X, BookOpen, Trash2, Calendar, Clock, Sparkles } from 'lucide-react';
 import { Course, CurriculumProgram, CurriculumSubject, CurriculumSection, DayCode } from '../types';
 import { storageService } from '../services/storageService';
-import { DAYS_OF_WEEK, getCourseDays, formatDaysDisplay } from '../utils/collegeUtils';
+import {
+  DAYS_OF_WEEK,
+  TIME_DROPDOWN_OPTIONS,
+  getCourseDays,
+  formatDaysDisplay,
+  parseTimeRange
+} from '../utils/collegeUtils';
 
 interface CourseModalProps {
   isOpen: boolean;
@@ -59,7 +65,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   const [semester, setSemester] = useState('1st Semester 2026-2027');
   const [room, setRoom] = useState('');
   const [selectedDays, setSelectedDays] = useState<DayCode[]>(['M', 'W', 'F']);
-  const [time, setTime] = useState('');
+  const [dayTimes, setDayTimes] = useState<Partial<Record<DayCode, { startTime: string; endTime: string }>>>({});
   const [color, setColor] = useState(() => getRandomCourseColor());
   const [isCustomSubject, setIsCustomSubject] = useState(false);
   const [isCustomSection, setIsCustomSection] = useState(false);
@@ -76,8 +82,22 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setSemester(initialCourse.semester || '1st Semester 2026-2027');
       setRoom(initialCourse.room || '');
       const parsedDays = getCourseDays(initialCourse);
-      setSelectedDays(parsedDays.length > 0 ? parsedDays : ['M', 'W', 'F']);
-      setTime(initialCourse.time || extractTimeFromSchedule(initialCourse.schedule) || '');
+      const days = parsedDays.length > 0 ? parsedDays : (['M', 'W', 'F'] as DayCode[]);
+      setSelectedDays(days);
+
+      const initialTime = initialCourse.time || extractTimeFromSchedule(initialCourse.schedule);
+      const parsedRange = parseTimeRange(initialTime);
+
+      const initialDayTimes: Partial<Record<DayCode, { startTime: string; endTime: string }>> = {};
+      days.forEach(d => {
+        if (initialCourse.dayTimes && initialCourse.dayTimes[d]) {
+          initialDayTimes[d] = { ...initialCourse.dayTimes[d]! };
+        } else {
+          initialDayTimes[d] = { ...parsedRange };
+        }
+      });
+      setDayTimes(initialDayTimes);
+
       setColor(initialCourse.color || getRandomCourseColor());
       setIsCustomSubject(true);
       setIsCustomSection(true);
@@ -109,7 +129,11 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setSemester('1st Semester 2026-2027');
       setRoom('');
       setSelectedDays(['M', 'W', 'F']);
-      setTime('');
+      setDayTimes({
+        M: { startTime: '8:00 AM', endTime: '9:00 AM' },
+        W: { startTime: '8:00 AM', endTime: '9:00 AM' },
+        F: { startTime: '8:00 AM', endTime: '9:00 AM' }
+      });
       // Assign a random color when creating a new subject
       setColor(getRandomCourseColor());
     }
@@ -149,9 +173,43 @@ export const CourseModal: React.FC<CourseModalProps> = ({
 
   // Day toggle
   const toggleDay = (day: DayCode) => {
-    setSelectedDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
-    );
+    setSelectedDays(prev => {
+      if (prev.includes(day)) {
+        return prev.filter(d => d !== day);
+      } else {
+        const firstDay = prev[0];
+        const fallbackTime = (firstDay && dayTimes[firstDay]) || { startTime: '8:00 AM', endTime: '9:00 AM' };
+        setDayTimes(curr => ({
+          ...curr,
+          [day]: curr[day] || { ...fallbackTime }
+        }));
+        return [...prev, day];
+      }
+    });
+  };
+
+  const handleDayTimeChange = (day: DayCode, field: 'startTime' | 'endTime', val: string) => {
+    setDayTimes(prev => {
+      const existing = prev[day] || { startTime: '8:00 AM', endTime: '9:00 AM' };
+      return {
+        ...prev,
+        [day]: {
+          ...existing,
+          [field]: val
+        }
+      };
+    });
+  };
+
+  const copyTimeToAllDays = (sourceDay: DayCode) => {
+    const sourceTime = dayTimes[sourceDay] || { startTime: '8:00 AM', endTime: '9:00 AM' };
+    setDayTimes(prev => {
+      const updated = { ...prev };
+      selectedDays.forEach(d => {
+        updated[d] = { ...sourceTime };
+      });
+      return updated;
+    });
   };
 
   if (!isOpen) return null;
@@ -160,8 +218,43 @@ export const CourseModal: React.FC<CourseModalProps> = ({
     e.preventDefault();
     if (!code.trim() || !name.trim()) return;
 
+    const order: DayCode[] = ['M', 'T', 'W', 'TH', 'F', 'S', 'SU'];
+    const sortedDays = [...selectedDays].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+
+    let computedTime = '';
+    if (sortedDays.length > 0) {
+      const firstDay = sortedDays[0];
+      const firstTime = dayTimes[firstDay] || { startTime: '8:00 AM', endTime: '9:00 AM' };
+      const allSame = sortedDays.every(d => {
+        const dt = dayTimes[d];
+        return dt && dt.startTime === firstTime.startTime && dt.endTime === firstTime.endTime;
+      });
+
+      if (allSame) {
+        computedTime = `${firstTime.startTime} - ${firstTime.endTime}`;
+      } else {
+        computedTime = sortedDays
+          .map(d => {
+            const dt = dayTimes[d] || firstTime;
+            return `${d} ${dt.startTime} - ${dt.endTime}`;
+          })
+          .join(', ');
+      }
+    }
+
     const formattedDays = formatDaysDisplay(selectedDays);
-    const fullSchedule = [formattedDays, time.trim()].filter(Boolean).join(' ');
+    const fullSchedule = computedTime
+      ? (formattedDays && !computedTime.includes(selectedDays[0])
+          ? `${formattedDays} ${computedTime}`
+          : computedTime)
+      : formattedDays;
+
+    const activeDayTimes: Partial<Record<DayCode, { startTime: string; endTime: string }>> = {};
+    selectedDays.forEach(d => {
+      if (dayTimes[d]) {
+        activeDayTimes[d] = dayTimes[d];
+      }
+    });
 
     const courseData: Course = {
       id: initialCourse ? initialCourse.id : `course_${Date.now()}`,
@@ -171,7 +264,8 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       semester: semester.trim(),
       room: room.trim() || undefined,
       days: selectedDays.length > 0 ? selectedDays : undefined,
-      time: time.trim() || undefined,
+      time: computedTime || undefined,
+      dayTimes: Object.keys(activeDayTimes).length > 0 ? activeDayTimes : undefined,
       schedule: fullSchedule || undefined,
       color,
       createdAt: initialCourse ? initialCourse.createdAt : Date.now()
@@ -183,7 +277,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '580px', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="modal-icon-badge" style={{ background: color + '20', color: color }}>
@@ -200,7 +294,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', overflowY: 'auto', flex: 1 }}>
             
             {/* Row 1: Subject Code & Section */}
             <div className="form-row-2col">
@@ -305,20 +399,19 @@ export const CourseModal: React.FC<CourseModalProps> = ({
               />
             </div>
 
-            {/* Row 3: Semester */}
-            <div className="form-group">
-              <label className="form-label">Semester / Term</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="e.g. 1st Semester 2026-2027"
-                value={semester}
-                onChange={e => setSemester(e.target.value)}
-              />
-            </div>
-
-            {/* Row 4: Room & Time */}
+            {/* Row 3: Semester & Room (2 Columns) */}
             <div className="form-row-2col">
+              <div className="form-group">
+                <label className="form-label">Semester / Term</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. 1st Semester 2026-2027"
+                  value={semester}
+                  onChange={e => setSemester(e.target.value)}
+                />
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Room / Hall / Lab</label>
                 <input
@@ -329,20 +422,9 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                   onChange={e => setRoom(e.target.value)}
                 />
               </div>
-
-              <div className="form-group">
-                <label className="form-label">Class Time / Period</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. 9:00 - 10:30 AM"
-                  value={time}
-                  onChange={e => setTime(e.target.value)}
-                />
-              </div>
             </div>
 
-            {/* Row 5: Class Schedule Days */}
+            {/* Row 4: Class Schedule Days */}
             <div className="form-group">
               <label className="form-label" style={{ marginBottom: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Calendar size={14} />
@@ -367,6 +449,72 @@ export const CourseModal: React.FC<CourseModalProps> = ({
                   );
                 })}
               </div>
+            </div>
+
+            {/* Row 5: Class Time Dropdowns for Each Selected Day */}
+            <div className="form-group">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Clock size={14} />
+                  <span>Class Time / Period</span>
+                </label>
+                {selectedDays.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    style={{ padding: '0 0.35rem', fontSize: '0.72rem', color: 'var(--primary)', height: 'auto', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    onClick={() => copyTimeToAllDays(selectedDays[0])}
+                    title="Apply first day's time to all selected days"
+                  >
+                    <Sparkles size={12} />
+                    <span>Apply {selectedDays[0]}'s time to all</span>
+                  </button>
+                )}
+              </div>
+
+              {selectedDays.length === 0 ? (
+                <div style={{ padding: '0.75rem', background: 'var(--bg-surface-elevated)', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border-color)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  Select one or more schedule days above to configure class time.
+                </div>
+              ) : (
+                <div className="day-times-list">
+                  {DAYS_OF_WEEK.filter(d => selectedDays.includes(d.code)).map(d => {
+                    const dt = dayTimes[d.code] || { startTime: '08:00 AM', endTime: '09:00 AM' };
+                    return (
+                      <div key={d.code} className="day-time-card">
+                        <div className="day-time-badge">
+                          <span className="day-time-code">{d.code}</span>
+                          <span className="day-time-name">{d.full}</span>
+                        </div>
+
+                        <div className="day-time-dropdowns">
+                          <select
+                            className="form-select day-time-select"
+                            value={dt.startTime}
+                            onChange={e => handleDayTimeChange(d.code, 'startTime', e.target.value)}
+                          >
+                            {TIME_DROPDOWN_OPTIONS.map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+
+                          <span className="day-time-separator">:</span>
+
+                          <select
+                            className="form-select day-time-select"
+                            value={dt.endTime}
+                            onChange={e => handleDayTimeChange(d.code, 'endTime', e.target.value)}
+                          >
+                            {TIME_DROPDOWN_OPTIONS.map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Row 6: Accent Color Picker */}

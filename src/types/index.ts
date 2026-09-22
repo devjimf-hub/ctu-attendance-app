@@ -12,6 +12,7 @@ export interface Course {
   schedule?: string; // e.g., "MWF 9:00 - 10:30 AM"
   days?: DayCode[]; // e.g., ['M', 'W', 'F'] or ['T', 'TH']
   time?: string; // e.g. "9:00 - 10:30 AM"
+  dayTimes?: Partial<Record<DayCode, { startTime: string; endTime: string }>>; // per-day start and end times
   color: string; // Accent color hex
   order?: number; // Custom display sequence order for drag-and-drop
   createdAt: number;

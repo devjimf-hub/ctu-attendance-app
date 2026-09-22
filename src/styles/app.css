@@ -320,6 +320,120 @@
   background: var(--primary-light);
 }
 
+/* Per-Day Time Configuration */
+.day-times-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.day-time-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.day-time-card:hover {
+  border-color: var(--border-color-hover);
+}
+
+.day-time-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+
+.day-time-code {
+  font-family: var(--font-heading);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: var(--primary);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.day-time-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.day-time-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.day-time-select {
+  background: var(--bg-surface);
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.32rem 0.45rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  min-width: 0;
+  flex: 1 1 0;
+  max-width: 110px;
+  text-align: center;
+}
+
+.day-time-select:hover,
+.day-time-select:focus {
+  border-color: var(--primary);
+}
+
+.day-time-separator {
+  font-weight: 800;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  user-select: none;
+  padding: 0 0.1rem;
+  flex-shrink: 0;
+}
+
+@media (max-width: 460px) {
+  .day-time-card {
+    padding: 0.4rem 0.45rem;
+    gap: 0.35rem;
+  }
+
+  .day-time-name {
+    display: none;
+  }
+
+  .day-time-select {
+    padding: 0.32rem 0.2rem;
+    font-size: 0.75rem;
+  }
+}
+
 /* Dashboard Dynamic Day Filter Bar */
 .dashboard-day-filter-bar {
   display: flex;
@@ -1088,17 +1202,31 @@
   transform: translateY(-1px);
 }
 
-/* Roll Call Dedicated Fullscreen Modal */
-.modal-rollcall {
-  max-width: 1080px;
-  width: 96vw;
-  height: 92vh;
+/* Roll Call Dedicated Modal */
+.modal-rollcall,
+.modal-content.modal-rollcall {
+  max-width: 980px;
+  width: 95vw;
+  height: 90vh;
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
 }
 
+.modal-content.modal-rollcall.modal-rollcall-list {
+  max-width: 980px;
+}
+
+.modal-content.modal-rollcall.modal-rollcall-grid {
+  max-width: 1180px;
+}
+
+.modal-content.modal-rollcall.modal-rollcall-swipe {
+  max-width: 680px;
+}
+
 .modal-rollcall-header {
-  padding: 0.85rem 1.15rem;
+  padding: 0.85rem 1.25rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -1124,7 +1252,7 @@
 }
 
 .modal-rollcall-actions-row .btn {
-  flex: 1 1 auto;
+  flex: 1 1 180px;
 }
 
 .modal-rollcall-body {
@@ -1134,7 +1262,8 @@
 }
 
 @media (max-width: 640px) {
-  .modal-rollcall {
+  .modal-rollcall,
+  .modal-content.modal-rollcall {
     width: 98vw;
     height: 96vh;
     max-height: 98vh;

@@ -81,17 +81,146 @@ export function isCourseScheduledForDay(course: Course, dayCode: DayCode): boole
   return days.includes(dayCode);
 }
 
+export const TIME_DROPDOWN_OPTIONS: string[] = [
+  '6:00 AM', '6:30 AM',
+  '7:00 AM', '7:30 AM',
+  '8:00 AM', '8:30 AM',
+  '9:00 AM', '9:30 AM',
+  '10:00 AM', '10:30 AM',
+  '11:00 AM', '11:30 AM',
+  '12:00 PM', '12:30 PM',
+  '1:00 PM', '1:30 PM',
+  '2:00 PM', '2:30 PM',
+  '3:00 PM', '3:30 PM',
+  '4:00 PM', '4:30 PM',
+  '5:00 PM', '5:30 PM',
+  '6:00 PM', '6:30 PM',
+  '7:00 PM', '7:30 PM',
+  '8:00 PM', '8:30 PM',
+  '9:00 PM', '9:30 PM'
+];
+
 /**
- * Extract only the time portion from a course (e.g., "9:00 - 10:30 AM"), ignoring day prefixes.
- * Returns empty string if only day letters exist (preventing redundant day labels with clock icon).
+ * Normalize time string into "h:mm AM/PM" matching TIME_DROPDOWN_OPTIONS.
  */
-export function getCourseTimeDisplay(course: Course): string {
+export function normalizeTimeString(timeStr?: string, defaultFallback = '8:00 AM'): string {
+  if (!timeStr) return defaultFallback;
+  const trimmed = timeStr.trim();
+  if (!trimmed) return defaultFallback;
+
+  // Exact match
+  const exactMatch = TIME_DROPDOWN_OPTIONS.find(t => t.toLowerCase() === trimmed.toLowerCase());
+  if (exactMatch) return exactMatch;
+
+  // Match e.g. "8:00", "8:00 AM", "08:00", "8:00AM", "14:00"
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (match) {
+    let hour = parseInt(match[1], 10);
+    const minute = match[2] ? (parseInt(match[2], 10) >= 30 ? '30' : '00') : '00';
+    let period = match[3] ? match[3].toUpperCase() : '';
+
+    if (!period) {
+      if (hour >= 12) {
+        period = 'PM';
+        if (hour > 12) hour -= 12;
+      } else if (hour >= 7 && hour <= 11) {
+        period = 'AM';
+      } else {
+        period = 'PM';
+      }
+    } else if (hour > 12) {
+      hour -= 12;
+    }
+
+    const result = `${hour}:${minute} ${period}`;
+    const found = TIME_DROPDOWN_OPTIONS.find(t => t.toLowerCase() === result.toLowerCase());
+    return found || result;
+  }
+
+  return defaultFallback;
+}
+
+/**
+ * Parse an incoming time range or schedule string into startTime and endTime.
+ */
+export function parseTimeRange(timeStr?: string): { startTime: string; endTime: string } {
+  if (!timeStr) return { startTime: '8:00 AM', endTime: '9:00 AM' };
+
+  const cleaned = timeStr
+    .replace(/^(M|T|W|TH|F|S|SU|MON|TUE|WED|THU|THUR|FRI|SAT|SUN|\s|-|,)+/i, '')
+    .trim();
+
+  const parts = cleaned.split(/\s*(?:-|to|–|—)\s*/i);
+  if (parts.length >= 2) {
+    return {
+      startTime: normalizeTimeString(parts[0], '8:00 AM'),
+      endTime: normalizeTimeString(parts[1], '9:00 AM')
+    };
+  }
+
+  return { startTime: '8:00 AM', endTime: '9:00 AM' };
+}
+
+/**
+ * Extract only the time portion from a course (e.g., "8:00 AM - 9:00 AM"), ignoring day prefixes.
+ * When specificDay is provided (e.g. today's DayCode), it returns only that specific day's scheduled time.
+ */
+export function getCourseTimeDisplay(course: Course, specificDay?: DayCode): string {
+  // 1. If a specific day is requested (e.g. today's day) and configured in dayTimes:
+  if (specificDay && course.dayTimes && course.dayTimes[specificDay]) {
+    const dt = course.dayTimes[specificDay];
+    if (dt?.startTime && dt?.endTime) {
+      return `${dt.startTime} - ${dt.endTime}`;
+    }
+  }
+
+  // 2. If specific day requested from schedule or time string:
+  if (specificDay) {
+    const textToSearch = course.schedule || course.time || '';
+    if (textToSearch) {
+      const regex = new RegExp(`(?:^|[,\\s])(?:${specificDay})\\s+([0-9:APMapm\\s–-]+?)(?=,[\\s]*[MTWFHSU]|$)`, 'i');
+      const match = textToSearch.match(regex);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+  }
+
+  // 3. If course has dayTimes:
+  if (course.dayTimes && course.days && course.days.length > 0) {
+    const firstDay = course.days[0];
+    const firstDt = course.dayTimes[firstDay];
+    if (firstDt && firstDt.startTime && firstDt.endTime) {
+      const allSame = course.days.every(d => {
+        const dt = course.dayTimes?.[d];
+        return dt && dt.startTime === firstDt.startTime && dt.endTime === firstDt.endTime;
+      });
+      if (allSame) {
+        return `${firstDt.startTime} - ${firstDt.endTime}`;
+      } else {
+        // If not all same, check if today is scheduled:
+        const today = getTodayDayCode();
+        if (course.dayTimes[today]?.startTime && course.dayTimes[today]?.endTime) {
+          return `${course.dayTimes[today]!.startTime} - ${course.dayTimes[today]!.endTime}`;
+        }
+        return course.days
+          .map(d => {
+            const dt = course.dayTimes?.[d];
+            return dt ? `${d} ${dt.startTime} - ${dt.endTime}` : '';
+          })
+          .filter(Boolean)
+          .join(', ');
+      }
+    }
+  }
+
   if (course.time && course.time.trim()) {
     const trimmed = course.time.trim();
     if (!/^[MTWFHSU\s-,]+$/i.test(trimmed)) {
       return trimmed;
     }
   }
+
   if (course.schedule) {
     const timeOnly = course.schedule
       .replace(/^(M|T|W|TH|F|S|SU|MON|TUE|WED|THU|THUR|FRI|SAT|SUN|\s|-|,)+/i, '')
@@ -100,7 +229,56 @@ export function getCourseTimeDisplay(course: Course): string {
       return timeOnly;
     }
   }
+
   return '';
+}
+
+/**
+ * Convert a time string (e.g. "8:00 AM", "1:30 PM", "14:00") into minutes from midnight (0 - 1439).
+ */
+export function parseTimeToMinutes(timeStr?: string): number {
+  if (!timeStr) return 99999;
+  const match = timeStr.trim().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (!match) return 99999;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ? parseInt(match[2], 10) : 0;
+  const period = match[3] ? match[3].toUpperCase() : '';
+
+  if (period === 'PM' && hour < 12) {
+    hour += 12;
+  } else if (period === 'AM' && hour === 12) {
+    hour = 0;
+  } else if (!period) {
+    if (hour >= 1 && hour <= 6) {
+      hour += 12;
+    }
+  }
+
+  return hour * 60 + minute;
+}
+
+/**
+ * Get a course's start time in minutes from midnight for a given day (e.g. today).
+ * Used to chronologically sort courses by their scheduled time.
+ */
+export function getCourseStartTimeMinutes(course: Course, specificDay?: DayCode): number {
+  if (specificDay && course.dayTimes && course.dayTimes[specificDay]) {
+    const start = course.dayTimes[specificDay]?.startTime;
+    if (start) {
+      return parseTimeToMinutes(start);
+    }
+  }
+
+  const timeDisplay = getCourseTimeDisplay(course, specificDay);
+  if (timeDisplay) {
+    const parts = timeDisplay.split(/\s*(?:-|to|–|—)\s*/i);
+    if (parts[0]) {
+      return parseTimeToMinutes(parts[0]);
+    }
+  }
+
+  return 99999;
 }
 
 /**

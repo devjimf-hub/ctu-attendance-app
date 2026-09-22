@@ -19,7 +19,8 @@ import {
   DAYS_OF_WEEK,
   getTodayDayCode,
   isCourseScheduledForDay,
-  getCourseTimeDisplay
+  getCourseTimeDisplay,
+  getCourseStartTimeMinutes
 } from '../utils/collegeUtils';
 
 interface DashboardProps {
@@ -66,6 +67,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
       return isCourseScheduledForDay(course, todayCode);
     }
     return true;
+  });
+
+  // Sort courses chronologically by time schedule
+  const sortedCourses = [...filteredCourses].sort((a, b) => {
+    const timeA = getCourseStartTimeMinutes(a, todayCode);
+    const timeB = getCourseStartTimeMinutes(b, todayCode);
+    if (timeA !== timeB) {
+      return timeA - timeB;
+    }
+    // Secondary fallback: custom order or course code
+    if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
+      return a.order - b.order;
+    }
+    return a.code.localeCompare(b.code);
   });
 
   const getStudentCount = (courseId: string) => {
@@ -132,19 +147,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
               Showing classes for <strong>Today ({todayObj.full})</strong> ({filteredCourses.length} of {courses.length} classes)
             </span>
           </div>
-          <button
-            type="button"
-            className="btn-ghost"
-            style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', height: 'auto', color: 'var(--primary)', fontWeight: 700 }}
-            onClick={() => setDayFilter('all')}
-          >
-            Show All Classes →
-          </button>
         </div>
       )}
 
       {/* Classroom Cards Grid */}
-      {filteredCourses.length === 0 ? (
+      {sortedCourses.length === 0 ? (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '3.5rem 1.5rem', textAlign: 'center', maxWidth: '540px', margin: '2rem auto' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
             <BookOpen size={28} />
@@ -177,7 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       ) : (
         <div className="classroom-grid">
-          {filteredCourses.map(course => {
+          {sortedCourses.map(course => {
             const studentCount = getStudentCount(course.id);
             const isMenuOpen = activeMenuCourseId === course.id;
 
@@ -288,7 +295,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <div className="classroom-card-body">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                     {(() => {
-                      const timeText = getCourseTimeDisplay(course);
+                      const timeText = getCourseTimeDisplay(course, todayCode);
                       if (!timeText) return null;
                       return (
                         <div className="card-info-row">
